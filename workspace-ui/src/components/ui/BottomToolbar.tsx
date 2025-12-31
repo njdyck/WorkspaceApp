@@ -1,15 +1,19 @@
 import React, { useState } from 'react';
-import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid } from 'lucide-react';
+import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid, ArrowRight, X } from 'lucide-react';
 import { useUIStore, useCanvasStore } from '@/stores';
 import { autoClusterItems } from '@/services/clustering';
+import { generateId } from '@/utils';
+import { DEFAULT_WEBVIEW_WIDTH, DEFAULT_WEBVIEW_HEIGHT } from '@/models';
 
 export const BottomToolbar: React.FC = () => {
   const { openAddModal } = useUIStore();
-  const { items, updateItem, viewport } = useCanvasStore();
+  const { items, updateItem, viewport, addItem } = useCanvasStore();
   const [showAIMenu, setShowAIMenu] = useState(false);
   const [isClustering, setIsClustering] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
+  const [showWebviewInput, setShowWebviewInput] = useState(false);
+  const [webviewUrl, setWebviewUrl] = useState('https://');
 
   const handleAutoCluster = async (useAI: boolean = false) => {
     setIsClustering(true);
@@ -46,6 +50,46 @@ export const BottomToolbar: React.FC = () => {
       console.error('Clustering fehlgeschlagen:', error);
     } finally {
       setTimeout(() => setIsClustering(false), positionCount * 50 + 200);
+    }
+  };
+
+  const handleCreateWebview = () => {
+    // URL validieren und normalisieren
+    let finalUrl = webviewUrl.trim();
+    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://')) {
+      finalUrl = 'https://' + finalUrl;
+    }
+
+    // Position im Zentrum des Viewports
+    const centerX = -viewport.x + window.innerWidth / 2;
+    const centerY = -viewport.y + window.innerHeight / 2;
+    const x = centerX - DEFAULT_WEBVIEW_WIDTH / 2;
+    const y = centerY - DEFAULT_WEBVIEW_HEIGHT / 2;
+
+    addItem({
+      id: generateId(),
+      content: new URL(finalUrl).hostname || 'Webview',
+      x,
+      y,
+      width: DEFAULT_WEBVIEW_WIDTH,
+      height: DEFAULT_WEBVIEW_HEIGHT,
+      status: 'active',
+      badge: 'webview',
+      url: finalUrl,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+
+    setShowWebviewInput(false);
+    setWebviewUrl('https://');
+  };
+
+  const handleWebviewKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleCreateWebview();
+    } else if (e.key === 'Escape') {
+      setShowWebviewInput(false);
+      setWebviewUrl('https://');
     }
   };
 
@@ -168,16 +212,69 @@ export const BottomToolbar: React.FC = () => {
         </div>
 
         {/* Webviews */}
-        <button
-          className="group p-1.5 rounded-full hover:bg-gray-50 transition-colors flex items-center justify-center"
-          aria-label="Webviews"
-        >
-          <Globe
-            size={18}
-            className="text-gray-500 group-hover:text-gray-800 transition-colors"
-            strokeWidth={1.5}
-          />
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowWebviewInput(!showWebviewInput)}
+            className={`group p-1.5 rounded-full transition-colors flex items-center justify-center ${
+              showWebviewInput ? 'bg-cyan-100' : 'hover:bg-gray-50'
+            }`}
+            aria-label="Webview erstellen"
+          >
+            <Globe
+              size={18}
+              className={`transition-colors ${
+                showWebviewInput 
+                  ? 'text-cyan-600' 
+                  : 'text-gray-500 group-hover:text-gray-800'
+              }`}
+              strokeWidth={1.5}
+            />
+          </button>
+
+          {/* Webview URL Input Popup */}
+          {showWebviewInput && (
+            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+              <div className="p-3 border-b border-gray-100 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                  <Globe size={16} className="text-cyan-600" />
+                  <h3 className="text-sm font-semibold text-gray-800">Live Webview</h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowWebviewInput(false);
+                    setWebviewUrl('https://');
+                  }}
+                  className="text-gray-400 hover:text-gray-600 p-0.5 rounded hover:bg-gray-100"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              
+              <div className="p-3">
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    type="text"
+                    value={webviewUrl}
+                    onChange={(e) => setWebviewUrl(e.target.value)}
+                    onKeyDown={handleWebviewKeyDown}
+                    placeholder="URL eingeben..."
+                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-200 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-100 outline-none transition-all"
+                  />
+                  <button
+                    onClick={handleCreateWebview}
+                    className="px-3 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-700 transition-colors flex items-center gap-1"
+                  >
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  Erstellt eine interaktive Webansicht auf dem Canvas
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Search */}
         <button
@@ -206,13 +303,15 @@ export const BottomToolbar: React.FC = () => {
         </button>
       </div>
 
-      {/* Click outside to close AI menu */}
-      {showAIMenu && (
+      {/* Click outside to close menus */}
+      {(showAIMenu || showWebviewInput) && (
         <div
           className="fixed inset-0 z-[-1]"
           onClick={() => {
             setShowAIMenu(false);
             setShowApiKeyInput(false);
+            setShowWebviewInput(false);
+            setWebviewUrl('https://');
           }}
         />
       )}
