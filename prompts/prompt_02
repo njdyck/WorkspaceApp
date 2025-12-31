@@ -1,0 +1,114 @@
+🎨 UI PROMPT – Floating Bottom Toolbar (COPY–PASTE)
+
+Baue nur die Benutzeroberfläche, keine Logik, keine Events, keine API-Calls.
+Fokus: visuelles Design, Layout, Komponenten-Struktur.
+
+🎯 Ziel
+
+Gestalte eine floating Bottom Toolbar für einen Canvas-basierten Workspace.
+Die Toolbar soll sich leicht, ruhig und hochwertig anfühlen – wie ein permanenter Handlungspunkt, nicht wie ein Feature-Menü.
+
+📍 Position & Verhalten
+
+Die Toolbar ist zentriert am unteren Rand
+
+Sie „schwebt“ leicht über dem Canvas
+
+Abgerundete Pill-Form
+
+Dezenter Schatten
+
+Halbtransparent
+
+Sie überdeckt den Canvas minimal
+
+🧱 Aufbau der Toolbar
+
+Die Toolbar enthält genau 5 Icons, ohne Text:
+
+Plus (+)
+
+Symbolisiert: etwas hinzufügen
+
+Ist leicht größer als die anderen Icons
+
+Visuell das Zentrum der Toolbar
+
+AI / Magic Icon
+
+z. B. Sparkles oder Brain
+
+Dezent, nicht dominant
+
+Signalisiert: „Unterstützung“, nicht „Automatik“
+
+Webviews / Browser Icon
+
+z. B. Globe, Tabs oder Browser-Outline
+
+Steht für: neues Webfenster / Webtab
+
+Search Icon
+
+Lupe
+
+Ruhig, funktional
+
+More (⋯)
+
+Drei Punkte
+
+Öffnet später Advanced-Optionen
+
+Sehr zurückhaltend gestaltet
+
+🎨 Design-Vorgaben
+
+Icons: Outline / Stroke Icons
+
+Keine Texte unter den Icons
+
+Icons gleichmäßig verteilt
+
+Subtile Hover-Effekte:
+
+leichtes Anheben
+
+sanfter Shadow
+
+minimale Farbänderung
+
+Aktiver Zustand:
+
+weicher Glow oder Hintergrund-Hervorhebung
+
+Farben:
+
+neutral (grau / off-white)
+
+kein starkes Blau oder Akzentfarben
+
+🧠 Wichtige UX-Regel
+
+Die Toolbar darf keine Bedeutung erzwingen:
+
+keine Typen
+
+keine Kategorien
+
+keine Modus-Wechsel
+
+Sie ist ein Intention-Launcher, kein Feature-Wähler.
+
+🧩 Technische Hinweise (UI only)
+
+Baue die Toolbar als eigenständige Komponente
+
+Sie soll später einfach mit Logik, Events und Shortcuts verbunden werden können
+
+Saubere Trennung zwischen Layout und Funktion
+
+🎯 Gefühl, das vermittelt werden soll
+
+„Ich kann jederzeit etwas hinzufügen, denken, suchen oder im Web arbeiten –
+ohne mich festlegen zu müssen.“

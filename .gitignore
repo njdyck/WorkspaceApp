@@ -1,0 +1,165 @@
+# ============================================
+# WorkspaceAPP - .gitignore
+# Open Source Ready
+# ============================================
+
+# ============================================
+# Dependencies
+# ============================================
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+
+# ============================================
+# Build Output
+# ============================================
+dist/
+dist-ssr/
+build/
+*.local
+
+# Tauri Build Output
+src-tauri/target/
+src-tauri/WixTools/
+src-tauri/Cargo.lock
+
+# ============================================
+# Environment & Secrets
+# WICHTIG: Niemals API-Keys committen!
+# ============================================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+*.env
+
+# API Keys / Secrets (falls versehentlich angelegt)
+**/secrets/
+**/api-keys/
+*.key
+*.pem
+*.p12
+
+# ============================================
+# IDE & Editor
+# ============================================
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ============================================
+# OS-spezifisch
+# ============================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.directory
+
+# ============================================
+# Logs & Debug
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ============================================
+# Testing & Coverage
+# ============================================
+coverage/
+*.lcov
+.nyc_output/
+lib-cov/
+
+# ============================================
+# Cache & Temp
+# ============================================
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+*.tsbuildinfo
+.turbo/
+.vercel/
+.output/
+.nuxt/
+.next/
+
+# Vite
+vite.config.ts.timestamp-*
+
+# ============================================
+# TypeScript
+# ============================================
+*.tsbuildinfo
+
+# ============================================
+# Rust / Cargo (für Tauri)
+# ============================================
+**/target/
+**/*.rs.bk
+Cargo.lock
+
+# ============================================
+# Misc
+# ============================================
+*.bak
+*.tmp
+*.temp
+*.orig
+
+# Local development files
+.local/
+*.local.*
+
+# Cursor AI
+.cursor/
+!.cursor/rules
+.cursorignore
+
+# ============================================
+# Optional: Falls du später hinzufügst
+# ============================================
+# Firebase
+# .firebase/
+# firebase-debug.log
+# firebaserc
+
+# Supabase
+# .supabase/
+
+# Docker
+# docker-compose.override.yml
+
