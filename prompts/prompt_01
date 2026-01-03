@@ -1,0 +1,189 @@
+🧠 INITIAL UI PROMPT (COPY–PASTE)
+
+Baue nur die Benutzeroberfläche, keine Geschäftslogik, keine KI, keine Persistenz.
+Fokus: Struktur, Layout, Komponenten-Hierarchie.
+
+🎯 Ziel der App
+
+Baue die UI für einen Workspace mit Canvas und Live Webtabs, der sich anfühlt wie ein leichtes „Arbeits-OS“.
+Die Oberfläche soll extrem ruhig, minimal und erweiterbar sein.
+
+🧩 Grundlayout (sehr wichtig)
+
+Die App besteht aus drei klar getrennten Zonen:
+
+Top Toolbar (global)
+
+Canvas Area (zentraler Arbeitsraum)
+
+Optionales Side Panel (Details / Fokus)
+
+⚠️ Keine Modus-Switcher, keine Feature-Tabs, keine komplexen Menüs
+
+🧰 1. Top Toolbar – minimal & stabil
+
+Baue eine horizontale Toolbar mit maximal 5 Elementen:
+
+➕ Add
+→ öffnet einen minimalistischen Add-Container (nur Textinput)
+
+🧠 Describe / Magic Input
+→ großes Texteingabefeld (nur UI, keine KI)
+
+👁 View Switch
+→ Canvas / List (nur visuell)
+
+🔍 Search
+→ simples Suchfeld
+
+⋯ More
+→ Dropdown mit Advanced-Platzhaltern (ohne Funktion)
+
+⚠️ Keine weiteren Buttons
+⚠️ Keine Icons mit Bedeutungen wie „Task“, „Projekt“, „Workflow“
+
+➕ Add-Container (zentrales UI-Element)
+
+Wenn „Add“ geklickt wird, zeige einen ruhigen, zentrierten Container:
+
+Ein einziges Textfeld
+
+Placeholder: „Was ist das?“
+
+Subtiler Hint darunter:
+
+„Du kannst später alles daraus machen.“
+
+❌ Keine Typ-Auswahl
+❌ Keine Icons
+❌ Keine Kategorien
+
+Der Container soll sich anfühlen wie:
+
+„Ich darf etwas aufschreiben, ohne mich festzulegen.“
+
+🧠 2. Canvas Area (Herzstück)
+
+Der Canvas ist:
+
+eine freie Fläche
+
+hell / neutral
+
+scrollbar & zoombar (UI-Vorbereitung)
+
+Darauf liegen Cards (Items) mit:
+
+Titel
+
+kleinem Status-Badge (z. B. „Inbox“)
+
+sonst nichts
+
+Cards sollen:
+
+verschiebbar aussehen
+
+klickbar sein
+
+minimal gestaltet sein
+
+⚠️ Kein Kanban
+⚠️ Kein Kalender
+⚠️ Keine Prioritäten
+
+🌐 3. Webtabs (Kernfeature – UI only)
+
+Baue eine Webtab-Komponente als eigenständiges UI-Element:
+
+Tab-Bar (oben oder seitlich)
+
+Tabs mit:
+
+Titel
+
+Close-Button
+
+Active-State
+
+Der Inhalt eines Webtabs ist ein Platzhalter:
+
+graue Fläche
+
+Text: „Live Web Content“
+
+⚠️ Noch kein iframe, keine echte Seite
+⚠️ Nur Layout & Struktur
+
+Webtabs sollen:
+
+nebeneinander existieren können
+
+klar getrennt vom Canvas sein
+
+andockbar wirken (z. B. Split-View)
+
+📄 4. Item Detail Panel (Side Panel)
+
+Beim Klick auf ein Item:
+
+öffnet sich ein ruhiges Side Panel
+
+Darin:
+
+Titel (editierbar)
+
+Status-Dropdown (Inbox / In Progress / Done)
+
+großes Textfeld für Kontext
+
+❌ Keine Relationen
+❌ Keine Regeln
+❌ Keine KI
+
+🎨 Design-Vorgaben
+
+sehr minimalistisch
+
+viel Weißraum
+
+weiche Schatten
+
+keine harten Linien
+
+neutrale Farben
+
+klare Typografie
+
+Die App soll sich anfühlen wie:
+
+„Ein Ort, an dem Denken leicht ist.“
+
+🧠 Wichtigste Regel (bitte beachten)
+
+Die UI darf keine Annahmen über Logik treffen:
+
+keine festen Typen
+
+keine harte Bedeutungen
+
+keine impliziten Workflows
+
+Alles soll so gebaut sein,
+dass später jede Logik von außen andockbar ist.
+
+Tech Stack:
+- Frontend: React 18 + TypeScript + Tailwind CSS
+- Runtime: Tauri 2.x (Desktop App)
+- Webviews: Native Tauri Webview API (keine iframes)
+
+Webview-Architektur (nur UI-Vorbereitung):
+- Webtabs nutzen später `WebviewWindow` oder eingebettete Webviews
+- Für jetzt: Platzhalter-Container mit Tab-Struktur
+- Tab-Bar: horizontal, oben im Webtab-Bereich
+- Jeder Tab zeigt grauen Platzhalter: „Live Web Content"
+
+Wichtig:
+- Keine Tauri-Commands in V1
+- Keine IPC-Logik
+- Nur Frontend-Komponenten, die später an Tauri andocken

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link2, Globe, RefreshCw, X, ExternalLink, Maximize2 } from 'lucide-react';
+import { Link2, Globe, Maximize2, Play } from 'lucide-react';
 import { CanvasItem as CanvasItemType } from '@/models';
 import { useCanvasStore, useUIStore } from '@/stores';
 import { useItemDrag, useItemResize } from '@/hooks';
@@ -92,32 +92,19 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
     }
   };
 
-  const handleOpenExternal = () => {
-    if (item.url) {
-      window.open(item.url, '_blank');
-    }
-  };
-
   const handleOpenNativeWebview = async () => {
-    if (item.url) {
-      try {
-        await invoke('open_webview_window', {
-          url: item.url,
-          title: item.content || 'Webview',
-          width: item.width,
-          height: item.height,
-        });
-      } catch (error) {
-        console.error('Failed to open webview:', error);
-        // Fallback to browser
-        window.open(item.url, '_blank');
-      }
-    }
-  };
+    if (!item.url) return;
 
-  const handleRefresh = () => {
-    // Öffnet die Webview neu
-    handleOpenNativeWebview();
+    try {
+      await invoke('open_webview_window', {
+        url: item.url,
+        title: item.content || 'Webview',
+        width: item.width,
+        height: item.height,
+      });
+    } catch (error) {
+      console.error('Failed to open Tauri webview:', error);
+    }
   };
 
   const handleCloseWebview = (e: React.MouseEvent) => {
@@ -125,7 +112,7 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
     removeItem(item.id);
   };
 
-  // Webview Rendering
+  // Webview Rendering (Dark Theme)
   if (isWebview) {
     return (
       <div
@@ -136,56 +123,45 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
           height: item.height,
         }}
         className={`
-          absolute bg-white rounded-xl border-2 overflow-hidden select-none group flex flex-col
+          absolute bg-slate-900 rounded-xl border overflow-hidden select-none group flex flex-col shadow-2xl shadow-black/50
           ${isSelected 
-            ? 'border-cyan-400 shadow-xl ring-2 ring-cyan-100' 
-            : 'border-gray-200 shadow-lg hover:shadow-xl hover:border-gray-300'
+            ? 'border-cyan-500 ring-2 ring-cyan-500/30' 
+            : 'border-slate-700 hover:border-slate-600'
           }
-          ${canBeTarget ? 'ring-2 ring-green-300 border-green-400' : ''}
-          ${isConnectingFrom ? 'ring-2 ring-blue-300 border-blue-400' : ''}
+          ${canBeTarget ? 'ring-2 ring-green-400/50 border-green-500' : ''}
+          ${isConnectingFrom ? 'ring-2 ring-blue-400/50 border-blue-500' : ''}
         `}
       >
-        {/* Header Bar - Draggable */}
+        {/* Header Bar - Draggable (Dark Theme) */}
         <div
           onMouseDown={handleMouseDown}
-          className="h-10 bg-gradient-to-b from-gray-50 to-gray-100 border-b border-gray-200 flex items-center gap-2 px-2 cursor-move shrink-0"
+          className="h-9 bg-slate-800 border-b border-slate-700 flex items-center gap-2 px-2.5 cursor-move shrink-0"
         >
           {/* Window Controls */}
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleCloseWebview}
-              className="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 transition-colors"
+              className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"
               title="Schließen"
             />
-            <div className="w-3 h-3 rounded-full bg-yellow-400" />
+            <div className="w-3 h-3 rounded-full bg-yellow-500" />
             <button
-              onClick={handleOpenExternal}
-              className="w-3 h-3 rounded-full bg-green-400 hover:bg-green-500 transition-colors"
-              title="Extern öffnen"
+              onClick={(e) => { e.stopPropagation(); handleOpenNativeWebview(); }}
+              className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors"
+              title="Webview öffnen"
             />
-          </div>
-
-          {/* Navigation Buttons */}
-          <div className="flex items-center gap-0.5 ml-1">
-            <button
-              onClick={handleRefresh}
-              className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
-              title="Neu laden"
-            >
-              <RefreshCw size={12} />
-            </button>
           </div>
 
           {/* URL Bar */}
-          <div className="flex-1 flex items-center">
+          <div className="flex-1 flex items-center ml-2">
             <div className={`
-              flex-1 flex items-center gap-2 px-2 py-1 rounded-md transition-all
+              flex-1 flex items-center gap-2 px-2.5 py-1 rounded-md transition-all
               ${isUrlFocused 
-                ? 'bg-white border border-cyan-300 shadow-sm' 
-                : 'bg-gray-200/60 border border-transparent hover:bg-gray-200'
+                ? 'bg-slate-600 ring-1 ring-cyan-500' 
+                : 'bg-slate-700/80 hover:bg-slate-700'
               }
             `}>
-              <Globe size={12} className="text-gray-400 shrink-0" />
+              <Globe size={11} className="text-slate-400 shrink-0" />
               <input
                 type="text"
                 value={urlInput}
@@ -197,33 +173,33 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
                   handleUrlSubmit();
                 }}
                 placeholder="URL eingeben..."
-                className="flex-1 text-xs bg-transparent outline-none text-gray-700 placeholder-gray-400 min-w-0"
+                className="flex-1 text-xs bg-transparent outline-none text-slate-200 placeholder-slate-500 min-w-0"
               />
             </div>
           </div>
 
-          {/* External Link */}
-          <button
-            onClick={handleOpenExternal}
-            className="p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
-            title="In neuem Tab öffnen"
-          >
-            <ExternalLink size={12} />
-          </button>
-
-          {/* Connection Button */}
-          <button
-            onClick={handleStartConnection}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 text-gray-500 hover:text-cyan-600 transition-all"
-            title="Verbindung erstellen"
-          >
-            <Link2 size={12} />
-          </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={(e) => { e.stopPropagation(); handleOpenNativeWebview(); }}
+              className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-colors"
+              title="Webview öffnen"
+            >
+              <Maximize2 size={12} />
+            </button>
+            <button
+              onClick={handleStartConnection}
+              className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-all"
+              title="Verbindung erstellen"
+            >
+              <Link2 size={12} />
+            </button>
+          </div>
         </div>
 
-        {/* Content Area */}
+        {/* Content Area - Click to open Webview */}
         <div 
-          className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 relative overflow-hidden flex items-center justify-center"
+          className="flex-1 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden flex items-center justify-center cursor-pointer group/content"
           onMouseDown={handleMouseDown}
           onDoubleClick={(e) => {
             e.stopPropagation();
@@ -231,34 +207,42 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
           }}
         >
           {item.url ? (
-            <div className="text-center p-6">
-              <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg">
-                <Globe size={40} className="text-white" />
+            <div className="text-center p-4">
+              {/* Animated Globe Icon */}
+              <div className="relative mb-4">
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/30 group-hover/content:scale-110 transition-transform">
+                  <Globe size={32} className="text-white" />
+                </div>
+                {/* Play overlay on hover */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/content:opacity-100 transition-opacity">
+                  <div className="w-16 h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <Play size={24} className="text-white ml-1" fill="white" />
+                  </div>
+                </div>
               </div>
-              <h3 className="text-gray-800 font-semibold text-lg mb-1 truncate max-w-full px-4">
+              
+              <h3 className="text-white font-semibold text-base mb-1 truncate max-w-full">
                 {item.content}
               </h3>
-              <p className="text-gray-500 text-sm mb-6 truncate max-w-full px-4">
+              <p className="text-slate-400 text-xs truncate max-w-full mb-4">
                 {item.url}
               </p>
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleOpenNativeWebview();
                 }}
-                className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl hover:scale-105 transition-all flex items-center gap-2 mx-auto"
+                className="px-5 py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg font-medium shadow-lg shadow-cyan-500/25 hover:shadow-xl hover:shadow-cyan-500/40 hover:scale-105 transition-all flex items-center gap-2 mx-auto text-sm"
               >
-                <Maximize2 size={18} />
-                <span>Im Fenster öffnen</span>
+                <Maximize2 size={16} />
+                <span>Webview öffnen</span>
               </button>
-              <p className="text-gray-400 text-xs mt-4">
-                Doppelklick oder Button zum Öffnen
-              </p>
             </div>
           ) : (
             <div className="text-center">
-              <Globe size={48} className="mx-auto mb-3 text-gray-300" />
-              <p className="text-sm text-gray-400">URL eingeben um Webseite zu laden</p>
+              <Globe size={40} className="mx-auto mb-3 text-slate-600" />
+              <p className="text-sm text-slate-500">URL eingeben</p>
             </div>
           )}
         </div>
@@ -268,7 +252,7 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
           className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize opacity-0 group-hover:opacity-100 hover:opacity-100 flex items-end justify-end p-1.5 z-10"
           onMouseDown={(e) => startResize(e, item.id)}
         >
-          <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-gray-400 rounded-br-sm"></div>
+          <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-500 rounded-br-sm"></div>
         </div>
       </div>
     );

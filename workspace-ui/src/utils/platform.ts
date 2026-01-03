@@ -11,3 +11,4 @@ export const isPanMode = (e: MouseEvent | React.MouseEvent): boolean => {
   return e[modifier];
 };
 
+

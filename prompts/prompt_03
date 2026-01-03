@@ -1,0 +1,363 @@
+# Logik Bauen
+
+# Infinite Canvas Component
+
+## Tech Stack
+- React 18 + TypeScript
+- Tauri 2.x (Desktop App)
+- Tailwind CSS
+- Keine externen Canvas-Libraries
+
+## Core Behavior
+
+### Navigation Model
+
+Das Canvas hat zwei Modi, gesteuert durch Modifier Keys:
+
+| Aktion | Ohne Modifier | Mit Alt/Option (Mac) oder Ctrl (Windows) |
+|--------|---------------|------------------------------------------|
+| Scroll (Wheel/Trackpad) | Pan in Scroll-Richtung | Pan in Scroll-Richtung (gleich) |
+| Maus ziehen | Selection Rectangle → Items auswählen | Hand-Tool → Canvas verschieben |
+| Klick auf Item | Item auswählen | Item auswählen |
+| Klick auf leere Fläche | Auswahl aufheben | Nichts |
+
+### Scroll-Verhalten (Standard)
+- Trackpad/Wheel scrollt das Canvas in alle Richtungen
+- Natürliches Scrolling (wie Browser)
+- Kein Zoom beim Scrollen
+- Smooth, kein Snapping
+
+### Pan-Modus (Modifier + Drag)
+- Modifier Key gedrückt halten (Alt/Option oder Ctrl)
+- Maus drücken + ziehen = Canvas bewegen
+- Cursor wechselt zu `grab` → `grabbing`
+- Loslassen = zurück zu Normal-Modus
+
+### Selection-Modus (Standard-Drag)
+- Ohne Modifier: Maus ziehen auf leerer Fläche
+- Zeichnet Selection Rectangle (gestrichelte Linie, halbtransparent)
+- Alle Items im Rechteck werden ausgewählt
+- Ausgewählte Items: visueller Highlight-State
+- Mehrere ausgewählte Items können zusammen verschoben werden
+
+## Viewport & Koordinaten
+```typescript
+interface Viewport {
+  x: number;      // aktuelle X-Position (kann negativ sein)
+  y: number;      // aktuelle Y-Position (kann negativ sein)
+  scale: number;  // für später (V1: immer 1)
+}
+
+interface CanvasItem {
+  id: string;
+  x: number;      // absolute Position auf Canvas
+  y: number;
+  width: number;
+  height: number;
+  // ... weitere Props
+}
+Visual Feedback
+Cursor States
+Default (auf Canvas): default
+Modifier gedrückt: grab
+Modifier + Dragging: grabbing
+Über Item: pointer
+Selection Drag: crosshair
+Optional: Subtle Grid
+Leichtes Dot-Grid im Hintergrund (opacity: 0.05)
+Hilft bei Orientierung
+Bewegt sich mit beim Pan
+Constraints
+Kein Zoom in V1 (scale bleibt 1)
+Keine Snap-to-Grid-Logik
+Keine Minimap
+Performance: Nur sichtbare Items rendern (Viewport Culling)
+Modifier Key Detection
+typescript
+
+Kopieren
+const getPanModifier = () => {
+  const isMac = navigator.platform.includes('Mac');
+  return isMac ? 'altKey' : 'ctrlKey';
+};
+
+// Usage in Event Handler
+const isPanMode = (e: MouseEvent) => {
+  const modifier = getPanModifier();
+  return e[modifier];
+};
+Component Structure
+<InfiniteCanvas>
+  <CanvasViewport>          // Transform-Container
+    <CanvasGrid />          // Hintergrund-Grid (optional)
+    <CanvasItems>           // Gerenderte Items
+      <CanvasItem />
+      <CanvasItem />
+    </CanvasItems>
+    <SelectionRectangle />  // Nur sichtbar beim Selection-Drag
+  </CanvasViewport>
+  <CanvasControls />        // Zoom-Buttons etc. (später)
+</InfiniteCanvas>
+Events to Handle
+onWheel → Pan (deltaX, deltaY auf Viewport anwenden)
+onMouseDown → Check Modifier → Start Pan oder Selection
+onMouseMove → Update Pan-Position oder Selection-Rectangle
+onMouseUp → End Pan oder finalize Selection
+onKeyDown/Up → Modifier-State tracken (für Cursor-Feedback)
+Edge Cases
+Modifier während Drag loslassen → Aktion abbrechen, zurück zu neutral
+Rechtsklick → ignorieren (später: Context Menu)
+Items außerhalb Viewport → nicht rendern
+Sehr schnelles Scrollen → throttlen (requestAnimationFrame)
+
+---
+
+# State Management
+
+## Tech
+- Zustand (oder jotai) für globalen State
+- Kein Redux, zu verbose
+
+## Stores
+
+### CanvasStore
+- viewport: { x, y, scale }
+- items: Map<string, CanvasItem>
+- selectedIds: Set<string>
+- isPanning: boolean
+- selectionRect: { start, end } | null
+
+### UIStore
+- sidePanel: { open: boolean, itemId: string | null }
+- addModal: { open: boolean }
+- activeWebtab: string | null
+
+## Regeln
+- Stores sind unabhängig
+- Keine zirkulären Dependencies
+- Actions sind synchron (async nur bei Persistence)
+
+
+---
+
+# Item Model
+
+## Base Item (alles startet hier)
+
+interface BaseItem {
+  id: string;                // uuid
+  content: string;           // was der User eingegeben hat
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  status: 'inbox' | 'active' | 'done';
+  createdAt: number;
+  updatedAt: number;
+}
+
+## Badges (automatisch erkannt, änderbar)
+
+type ItemBadge = 'note' | 'link' | 'idea' | 'task' | null;
+
+## Erkennung (später, nicht V1)
+
+- Starts with "http" → 'link'
+- Starts with "Idee:" → 'idea'
+- Contains Verb + Objekt → 'task'
+- Sonst → null (kein Badge)
+
+## Constraints
+
+- Keine harten Typen
+- Badge ist Suggestion, nicht Kategorie
+- Alles ist erstmal nur "Item"
+
+---
+
+# Interaction Flows
+
+## Add Item
+1. User klickt "Add" oder drückt Shortcut (Cmd+N)
+2. Modal öffnet sich (zentriert)
+3. User tippt, drückt Enter
+4. Item wird erstellt:
+   - Position: Viewport-Mitte + kleiner Random-Offset
+   - Status: 'inbox'
+   - Badge: auto-detect oder null
+5. Modal schließt
+6. Item erscheint auf Canvas
+
+## Select Item
+1. Klick auf Item → selectedIds = [item.id]
+2. Cmd+Klick → toggle in selectedIds
+3. Drag auf leerem Canvas → Selection Rectangle
+4. Items in Rectangle → selectedIds
+
+## Move Items
+1. Drag auf ausgewähltem Item
+2. Alle selectedIds bewegen sich zusammen
+3. Delta wird auf jede Position addiert
+4. MouseUp → Position finalisieren
+
+## Open Detail
+1. Doppelklick auf Item
+2. Side Panel öffnet sich
+3. Item-Daten werden angezeigt
+4. Änderungen → live in Store
+
+
+# Projektstruktur
+src/
+├── app/
+│   ├── App.tsx                 # Root Component
+│   ├── main.tsx                # Entry Point
+│   └── index.css               # Global Styles + Tailwind
+│
+├── components/
+│   ├── canvas/
+│   │   ├── InfiniteCanvas.tsx  # Haupt-Container, Events
+│   │   ├── CanvasViewport.tsx  # Transform-Layer
+│   │   ├── CanvasGrid.tsx      # Dot-Grid Background
+│   │   ├── CanvasItem.tsx      # Einzelnes Item
+│   │   ├── SelectionRect.tsx   # Auswahl-Rechteck
+│   │   └── index.ts            # Barrel Export
+│   │
+│   ├── ui/
+│   │   ├── Toolbar.tsx         # Top Toolbar
+│   │   ├── AddModal.tsx        # Add Item Modal
+│   │   ├── SidePanel.tsx       # Item Detail Panel
+│   │   └── index.ts
+│   │
+│   └── webtabs/
+│       ├── WebtabBar.tsx       # Tab-Leiste
+│       ├── WebtabPanel.tsx     # Content-Bereich (Platzhalter)
+│       └── index.ts
+│
+├── stores/
+│   ├── canvasStore.ts          # Viewport, Items, Selection
+│   ├── uiStore.ts              # Modals, Panels, Active States
+│   └── index.ts
+│
+├── models/
+│   ├── item.ts                 # BaseItem, ItemBadge Types
+│   ├── viewport.ts             # Viewport Interface
+│   └── index.ts
+│
+├── hooks/
+│   ├── useCanvasNavigation.ts  # Pan, Scroll, Modifier Detection
+│   ├── useSelection.ts         # Selection Rectangle Logic
+│   ├── useItemDrag.ts          # Item Drag & Drop
+│   ├── useKeyboard.ts          # Shortcuts (Cmd+N, etc.)
+│   └── index.ts
+│
+├── utils/
+│   ├── geometry.ts             # Rect Intersection, Point Math
+│   ├── platform.ts             # isMac, getPanModifier
+│   ├── id.ts                   # UUID Generator
+│   └── index.ts
+│
+├── constants/
+│   └── canvas.ts               # Grid Size, Default Viewport, etc.
+│
+└── types/
+└── index.ts                # Shared TypeScript Types
+
+
+---
+
+## File Responsibilities
+
+### `/stores`
+```typescript
+// canvasStore.ts
+interface CanvasState {
+  viewport: Viewport;
+  items: Map<string, CanvasItem>;
+  selectedIds: Set<string>;
+  isPanning: boolean;
+  selectionRect: SelectionRect | null;
+  
+  // Actions
+  pan: (deltaX: number, deltaY: number) => void;
+  setItems: (items: CanvasItem[]) => void;
+  addItem: (item: CanvasItem) => void;
+  updateItem: (id: string, updates: Partial<CanvasItem>) => void;
+  select: (ids: string[]) => void;
+  toggleSelect: (id: string) => void;
+  clearSelection: () => void;
+  moveSelected: (deltaX: number, deltaY: number) => void;
+}
+
+// uiStore.ts
+interface UIState {
+  addModal: { open: boolean };
+  sidePanel: { open: boolean; itemId: string | null };
+  activeWebtab: string | null;
+  
+  // Actions
+  openAddModal: () => void;
+  closeAddModal: () => void;
+  openSidePanel: (itemId: string) => void;
+  closeSidePanel: () => void;
+}
+/hooks
+typescript
+
+Kopieren
+// useCanvasNavigation.ts
+// - onWheel Handler
+// - Modifier Key Detection
+// - Pan State Management
+// - Returns: { isPanning, handlers }
+
+// useSelection.ts
+// - Selection Rectangle Start/Update/End
+// - Items-in-Rect Calculation
+// - Returns: { selectionRect, handlers }
+
+// useItemDrag.ts
+// - Drag Start/Move/End für Items
+// - Multi-Select Drag
+// - Returns: { isDragging, handlers }
+/utils
+typescript
+
+Kopieren
+// geometry.ts
+export const isPointInRect = (point, rect) => boolean;
+export const doRectsIntersect = (a, b) => boolean;
+export const getItemsInRect = (items, rect) => string[];
+
+// platform.ts
+export const isMac = () => boolean;
+export const getPanModifier = () => 'altKey' | 'ctrlKey';
+export const isPanMode = (e: MouseEvent) => boolean;
+Import Convention
+typescript
+
+Kopieren
+// Barrel Exports nutzen
+import { InfiniteCanvas, CanvasItem } from '@/components/canvas';
+import { useCanvasNavigation, useSelection } from '@/hooks';
+import { canvasStore, uiStore } from '@/stores';
+import { isPointInRect } from '@/utils';
+tsconfig.json Paths
+json
+
+Kopieren
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@/components/*": ["src/components/*"],
+      "@/stores/*": ["src/stores/*"],
+      "@/hooks/*": ["src/hooks/*"],
+      "@/utils/*": ["src/utils/*"],
+      "@/models/*": ["src/models/*"]
+    }
+  }
+}
+
+---
