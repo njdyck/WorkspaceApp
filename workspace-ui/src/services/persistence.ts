@@ -202,3 +202,17 @@ export const createAutoSave = (delayMs: number = 1000) => {
   };
 };
 
+// Alle Workspace-Daten löschen
+export const clearAllWorkspaceData = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(CURRENT_BOARD_KEY);
+  console.log('Workspace data cleared');
+};
+
+// Alle Boards löschen (für Testing)
+export const deleteAllBoards = (): void => {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(CURRENT_BOARD_KEY);
+  console.log('All boards deleted');
+};
+

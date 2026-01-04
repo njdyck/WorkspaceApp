@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Save, FolderOpen, Plus, Download, Upload } from 'lucide-react';
-import { useCanvasStore } from '@/stores';
-import { listBoards, exportBoard, importBoard, loadBoard as loadBoardFromStorage } from '@/services/persistence';
+import { Save, FolderOpen, Plus, Download, Upload, Trash2 } from 'lucide-react';
+import { useCanvasStore, useWebTabStore } from '@/stores';
+import { listBoards, exportBoard, importBoard, loadBoard as loadBoardFromStorage, clearAllWorkspaceData } from '@/services/persistence';
 import type { BoardMetadata } from '@/models';
 
 interface ToolbarProps {
@@ -10,10 +10,19 @@ interface ToolbarProps {
 
 export const Toolbar: React.FC<ToolbarProps> = ({ boardName }) => {
   const { setBoardName, saveCurrentBoard, loadBoard, newBoard, boardId } = useCanvasStore();
+  const { closeAllTabs } = useWebTabStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(boardName);
   const [showBoardList, setShowBoardList] = useState(false);
   const [boards, setBoards] = useState<BoardMetadata[]>([]);
+
+  const handleClearWorkspace = async () => {
+    if (confirm('Alle Daten löschen? Dies kann nicht rückgängig gemacht werden.')) {
+      await closeAllTabs();
+      clearAllWorkspaceData();
+      window.location.reload();
+    }
+  };
 
   const handleNameClick = () => {
     setEditValue(boardName);
@@ -144,6 +153,16 @@ export const Toolbar: React.FC<ToolbarProps> = ({ boardName }) => {
             title="Importieren"
           >
             <Upload size={16} />
+          </button>
+
+          <div className="w-px h-4 bg-gray-200 mx-1" />
+
+          <button
+            onClick={handleClearWorkspace}
+            className="p-1.5 rounded hover:bg-red-100 text-gray-500 hover:text-red-600 transition-colors"
+            title="Workspace löschen"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>

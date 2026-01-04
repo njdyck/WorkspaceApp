@@ -1,8 +1,9 @@
 import React, { useRef, useEffect } from 'react';
-import { useCanvasStore } from '@/stores';
+import { useCanvasStore, useWebTabStore } from '@/stores';
 import { useCanvasNavigation, useSelection, useItemDrag, useItemResize } from '@/hooks';
 import { CanvasGrid } from './CanvasGrid';
 import { CanvasItem } from './CanvasItem';
+import { WebTabItem } from './WebTabItem';
 import { SelectionRect } from './SelectionRect';
 import { ProximityFeedback } from './ProximityFeedback';
 import { ConnectionLines } from './ConnectionLines';
@@ -10,12 +11,18 @@ import { CanvasViewport } from './CanvasViewport';
 
 export const InfiniteCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
-  const { items, clearSelection, isPanning, isConnecting, cancelConnecting } = useCanvasStore();
+  const { items, clearSelection, isPanning, isConnecting, cancelConnecting, boardId } = useCanvasStore();
   const { isModifierPressed, handlers: navHandlers } = useCanvasNavigation();
   const { isSelecting, startSelection, updateSelection, endSelection } = useSelection();
+  const { closeAllTabs } = useWebTabStore();
   
   useItemDrag();
   useItemResize();
+
+  // Schließe alle Tabs beim Board-Wechsel
+  useEffect(() => {
+    closeAllTabs();
+  }, [boardId, closeAllTabs]);
 
   useEffect(() => {
     const el = canvasRef.current;
@@ -42,12 +49,17 @@ export const InfiniteCanvas: React.FC = () => {
     };
   }, []);
 
+  const { unfocusAllTabs } = useWebTabStore();
+
   const handleMouseDown = (e: React.MouseEvent) => {
     // Im Verbindungsmodus: Klick auf leeren Bereich bricht ab
     if (isConnecting) {
       cancelConnecting();
       return;
     }
+    
+    // Unfocus alle Web-Tabs wenn auf Canvas geklickt
+    unfocusAllTabs();
     
     navHandlers.onMouseDown(e);
     if (!isModifierPressed) {
@@ -99,10 +111,14 @@ export const InfiniteCanvas: React.FC = () => {
         {/* Explizite Verbindungen */}
         <ConnectionLines />
         
-        {/* Items */}
-        {itemsArray.map((item) => (
-          <CanvasItem key={item.id} item={item} />
-        ))}
+        {/* Items - WebTabItem für webview badges, sonst CanvasItem */}
+        {itemsArray.map((item) => 
+          item.badge === 'webview' ? (
+            <WebTabItem key={item.id} item={item} />
+          ) : (
+            <CanvasItem key={item.id} item={item} />
+          )
+        )}
 
         <SelectionRect />
       </CanvasViewport>
