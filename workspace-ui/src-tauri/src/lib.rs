@@ -75,8 +75,9 @@ async fn create_web_tab(
         .get_webview_window("main")
         .ok_or("Main window not found")?;
     
+    // Use inner_position to get coordinates relative to the content area (excluding title bar)
     let main_pos = main_window
-        .outer_position()
+        .inner_position()
         .map_err(|e| format!("Failed to get main window position: {}", e))?;
 
     // Absolutes Positioning relativ zum Hauptfenster
@@ -157,8 +158,9 @@ async fn update_web_tab_bounds(
         .get_webview_window("main")
         .ok_or("Main window not found")?;
     
+    // Use inner_position to account for title bar/decorations
     let main_pos = main_window
-        .outer_position()
+        .inner_position()
         .map_err(|e| format!("Failed to get main window position: {}", e))?;
 
     let abs_x = main_pos.x + bounds.x;

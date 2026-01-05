@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Save, FolderOpen, Plus, Download, Upload, Trash2 } from 'lucide-react';
-import { useCanvasStore, useWebTabStore } from '@/stores';
+import { Save, FolderOpen, Plus, Download, Upload, Trash2, Search, Settings, HelpCircle, Grid3X3, Moon, Sun } from 'lucide-react';
+import { useCanvasStore, useWebTabStore, useUIStore } from '@/stores';
 import { listBoards, exportBoard, importBoard, loadBoard as loadBoardFromStorage, clearAllWorkspaceData } from '@/services/persistence';
 import type { BoardMetadata } from '@/models';
 
@@ -11,10 +11,12 @@ interface ToolbarProps {
 export const Toolbar: React.FC<ToolbarProps> = ({ boardName }) => {
   const { setBoardName, saveCurrentBoard, loadBoard, newBoard, boardId } = useCanvasStore();
   const { closeAllTabs } = useWebTabStore();
+  const { openSearch, openHelpModal, gridSnapping, toggleGridSnapping, darkMode, toggleDarkMode } = useUIStore();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(boardName);
   const [showBoardList, setShowBoardList] = useState(false);
   const [boards, setBoards] = useState<BoardMetadata[]>([]);
+  const [showSettingsMenu, setShowSettingsMenu] = useState(false);
 
   const handleClearWorkspace = async () => {
     if (confirm('Alle Daten löschen? Dies kann nicht rückgängig gemacht werden.')) {
@@ -167,29 +169,105 @@ export const Toolbar: React.FC<ToolbarProps> = ({ boardName }) => {
         </div>
       </div>
 
-      {/* Center/Right: View Switch, Search, More */}
-      <div className="flex items-center gap-2 text-gray-500">
-        <div className="flex items-center bg-gray-100 rounded-md p-0.5">
-          <button className="px-3 py-1 bg-white shadow-sm rounded-sm text-xs font-medium text-gray-800">
-            Canvas
-          </button>
-          <button className="px-3 py-1 hover:bg-gray-200 rounded-sm text-xs font-medium">
-            List
-          </button>
-        </div>
-
-        <div className="relative mx-2">
-          <input
-            type="text"
-            placeholder="Search"
-            className="bg-transparent border-b border-gray-300 focus:border-gray-500 outline-none text-sm w-32 py-1 placeholder-gray-400"
-          />
-        </div>
-
-        <button className="w-8 h-8 flex items-center justify-center hover:bg-gray-100 rounded-md">
-          ⋯
+      {/* Right: Search, Grid, Theme, Help, Settings */}
+      <div className="flex items-center gap-1 text-gray-500">
+        {/* Search */}
+        <button
+          onClick={openSearch}
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors flex items-center gap-1.5"
+          title="Suchen (⌘F)"
+        >
+          <Search size={16} />
+          <span className="text-xs text-gray-400 hidden sm:inline">⌘F</span>
         </button>
+
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+
+        {/* Grid Snapping */}
+        <button
+          onClick={toggleGridSnapping}
+          className={`p-1.5 rounded transition-colors ${
+            gridSnapping ? 'bg-blue-100 text-blue-600' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-700'
+          }`}
+          title={`Grid-Snapping ${gridSnapping ? 'aus' : 'an'}schalten (⌘G)`}
+        >
+          <Grid3X3 size={16} />
+        </button>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleDarkMode}
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+          title="Theme wechseln (⌘⇧D)"
+        >
+          {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
+
+        {/* Help */}
+        <button
+          onClick={openHelpModal}
+          className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+          title="Hilfe (?)"
+        >
+          <HelpCircle size={16} />
+        </button>
+
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+
+        {/* Settings Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+            className="p-1.5 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700 transition-colors"
+            title="Einstellungen"
+          >
+            <Settings size={16} />
+          </button>
+
+          {showSettingsMenu && (
+            <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-xl border border-gray-200 py-1 z-50">
+              <button
+                onClick={() => {
+                  toggleGridSnapping();
+                  setShowSettingsMenu(false);
+                }}
+                className="w-full px-3 py-2 flex items-center justify-between text-sm text-gray-700 hover:bg-gray-100"
+              >
+                <span>Grid-Snapping</span>
+                <span className={`w-2 h-2 rounded-full ${gridSnapping ? 'bg-blue-500' : 'bg-gray-300'}`} />
+              </button>
+              <button
+                onClick={() => {
+                  toggleDarkMode();
+                  setShowSettingsMenu(false);
+                }}
+                className="w-full px-3 py-2 flex items-center justify-between text-sm text-gray-700 hover:bg-gray-100"
+              >
+                <span>Dark Mode</span>
+                <span className={`w-2 h-2 rounded-full ${darkMode ? 'bg-blue-500' : 'bg-gray-300'}`} />
+              </button>
+              <div className="h-px bg-gray-200 my-1" />
+              <button
+                onClick={() => {
+                  openHelpModal();
+                  setShowSettingsMenu(false);
+                }}
+                className="w-full px-3 py-2 flex items-center text-sm text-gray-700 hover:bg-gray-100"
+              >
+                Tastenkürzel
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Click outside to close settings */}
+      {showSettingsMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setShowSettingsMenu(false)}
+        />
+      )}
 
       {/* Board List Modal */}
       {showBoardList && (

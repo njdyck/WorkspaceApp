@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { useCanvasStore } from '@/stores';
+import { useCanvasStore, useUIStore } from '@/stores';
+import { GRID_SIZE } from '@/constants/canvas';
 
 export const useItemDrag = () => {
   const { selectedIds, select } = useCanvasStore();
@@ -61,6 +62,11 @@ export const useItemDrag = () => {
     [selectedIds, select]
   );
 
+  // Helper function for grid snapping
+  const snapToGrid = (value: number): number => {
+    return Math.round(value / GRID_SIZE) * GRID_SIZE;
+  };
+
   // Der Animation Loop
   const performDragUpdate = useCallback(() => {
     if (!dragState.current || !mouseRef.current) return;
@@ -68,6 +74,7 @@ export const useItemDrag = () => {
     const { startX, startY, initialItems } = dragState.current;
     const { x: currentX, y: currentY } = mouseRef.current;
     const currentScale = useCanvasStore.getState().viewport.scale;
+    const gridSnapping = useUIStore.getState().gridSnapping;
 
     // Calculate total delta in world coordinates
     const deltaX = (currentX - startX) / currentScale;
@@ -79,10 +86,19 @@ export const useItemDrag = () => {
     initialItems.forEach((initialPos, id) => {
       const item = allItems.get(id);
       if (item) {
+        let newX = initialPos.x + deltaX;
+        let newY = initialPos.y + deltaY;
+
+        // Apply grid snapping if enabled
+        if (gridSnapping) {
+          newX = snapToGrid(newX);
+          newY = snapToGrid(newY);
+        }
+
         allItems.set(id, {
           ...item,
-          x: initialPos.x + deltaX,
-          y: initialPos.y + deltaY,
+          x: newX,
+          y: newY,
           updatedAt: Date.now(),
         });
         hasChanges = true;

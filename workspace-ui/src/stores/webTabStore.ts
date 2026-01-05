@@ -26,7 +26,7 @@ export interface WebTab {
 interface WebTabState {
   tabs: Map<string, WebTab>;
   focusedTabId: string | null;
-  
+
   // Actions
   createTab: (itemId: string, url: string, bounds: TabBounds) => Promise<string | null>;
   updateTabBounds: (tabId: string, bounds: TabBounds) => Promise<void>;
@@ -38,7 +38,9 @@ interface WebTabState {
   setTabVisible: (tabId: string, visible: boolean) => Promise<void>;
   navigateTab: (tabId: string, url: string) => Promise<void>;
   getTabByItemId: (itemId: string) => WebTab | undefined;
-  
+  bringWebviewsToFront: () => Promise<void>;
+  focusMainWindow: () => Promise<void>;
+
   // Internal
   _setTabFocused: (tabId: string, focused: boolean) => void;
   _removeTab: (tabId: string) => void;
@@ -58,32 +60,18 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
 
   createTab: async (itemId, url, bounds) => {
     const tabId = `webtab-${itemId}`;
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:56',message:'createTab called',data:{itemId,tabId,url,bounds,isCreating:creatingTabs.has(tabId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
+
     // Prüfen ob Tab bereits existiert
     const existingTab = get().tabs.get(tabId);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:60',message:'Existing tab check in store',data:{tabId,existingTab:!!existingTab,allTabIds:Array.from(get().tabs.keys()),isCreating:creatingTabs.has(tabId)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
+
     if (existingTab) {
       // Tab existiert bereits - nur Bounds aktualisieren wenn nötig
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:63',message:'Tab exists, updating bounds only',data:{tabId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       await get().updateTabBounds(tabId, bounds);
       return tabId;
     }
-    
+
     // Prüfen ob bereits ein Tab erstellt wird (Lock)
     if (creatingTabs.has(tabId)) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:75',message:'Tab creation already in progress, skipping',data:{tabId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
       // Warte kurz und prüfe nochmal ob Tab jetzt existiert
       await new Promise(resolve => setTimeout(resolve, 100));
       const retryTab = get().tabs.get(tabId);
@@ -94,14 +82,10 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
       // Falls immer noch nicht vorhanden, abbrechen (anderer Prozess erstellt ihn)
       return null;
     }
-    
+
     // Lock setzen
     creatingTabs.add(tabId);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:68',message:'Invoking create_web_tab',data:{tabId,url,bounds},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
+
     try {
       await invoke('create_web_tab', {
         tabId,
@@ -113,10 +97,6 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
           height: Math.round(bounds.height),
         },
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'webTabStore.ts:78',message:'create_web_tab invoke success',data:{tabId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
 
       const newTab: WebTab = {
         id: tabId,
@@ -250,6 +230,24 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
   getTabByItemId: (itemId) => {
     const tabId = `webtab-${itemId}`;
     return get().tabs.get(tabId);
+  },
+
+  // Bring all webviews to front (above main window)
+  bringWebviewsToFront: async () => {
+    try {
+      await invoke('bring_webviews_to_front');
+    } catch (error) {
+      console.error('Failed to bring webviews to front:', error);
+    }
+  },
+
+  // Focus main window
+  focusMainWindow: async () => {
+    try {
+      await invoke('focus_main_window');
+    } catch (error) {
+      console.error('Failed to focus main window:', error);
+    }
   },
 
   // Alle Tabs schließen

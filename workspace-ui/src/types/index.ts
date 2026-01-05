@@ -17,4 +17,14 @@ export interface Rect {
   height: number;
 }
 
+export interface FocusZone {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+
+
+
 

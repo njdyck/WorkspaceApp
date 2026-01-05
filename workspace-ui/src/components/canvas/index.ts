@@ -6,3 +6,4 @@ export { WebTabItem } from './WebTabItem';
 export { SelectionRect } from './SelectionRect';
 export { ProximityFeedback } from './ProximityFeedback';
 export { ConnectionLines } from './ConnectionLines';
+export { FocusZone } from './FocusZone';

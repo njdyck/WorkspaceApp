@@ -1,1 +1,11 @@
 @import "tailwindcss";
+
+/* Enable class-based dark mode (default in Tailwind 4) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Smooth color transitions for dark mode */
+* {
+  transition-property: background-color, border-color;
+  transition-duration: 150ms;
+  transition-timing-function: ease-in-out;
+}

@@ -10,11 +10,15 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "workspace-ui",
-        "width": 800,
-        "height": 600
+        "width": 1200,
+        "height": 800,
+        "transparent": true,
+        "decorations": true,
+        "shadow": true
       }
     ],
     "security": {

@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { Globe, X, Maximize2, Minimize2, ExternalLink } from 'lucide-react';
+import React, { useEffect, useRef, useCallback, useState, memo, useMemo } from 'react';
+import { Globe, Maximize2 } from 'lucide-react';
 import { CanvasItem as CanvasItemType } from '@/models';
-import { useCanvasStore } from '@/stores';
+import { useCanvasStore, useUIStore } from '@/stores';
 import { useWebTabStore } from '@/stores/webTabStore';
 import { useItemDrag, useItemResize } from '@/hooks';
+import { isItemInFocusZone } from '@/utils/geometry';
 
 // ============================================================================
 // WEB TAB ITEM - Canvas-Karte die native Webview synchronisiert
@@ -13,21 +14,31 @@ interface WebTabItemProps {
   item: CanvasItemType;
 }
 
-export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
+const WebTabItemComponent: React.FC<WebTabItemProps> = ({ item }) => {
   const { viewport, selectedIds, updateItem, removeItem } = useCanvasStore();
-  const { 
-    createTab, 
-    updateTabBounds, 
-    closeTab, 
-    focusTab, 
+  const {
+    createTab,
+    updateTabBounds,
+    closeTab,
+    focusTab,
     unfocusAllTabs,
     setTabFullscreen,
+    setTabVisible,
     getTabByItemId,
   } = useWebTabStore();
-  
+
+  const focusMode = useUIStore((s) => s.focusMode);
+  const focusZone = useUIStore((s) => s.focusZone);
+
   const { startDrag } = useItemDrag();
   const { startResize } = useItemResize();
-  
+
+  // Focus Zone awareness
+  const isInFocus = useMemo(() => {
+    if (!focusMode || !focusZone) return true;
+    return isItemInFocusZone(item, focusZone);
+  }, [focusMode, focusZone, item.x, item.y, item.width, item.height]);
+
   const [urlInput, setUrlInput] = useState(item.url || 'https://');
   const [isUrlFocused, setIsUrlFocused] = useState(false);
   const [tabCreated, setTabCreated] = useState(false);
@@ -38,34 +49,33 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
       setUrlInput(item.url || 'https://');
     }
   }, [item.url, isUrlFocused]);
-  
+
   const isSelected = selectedIds.has(item.id);
   const tab = getTabByItemId(item.id);
-  const rafRef = useRef<number>();
   const lastBoundsRef = useRef<string>('');
-  const creatingTabRef = useRef<boolean>(false); // Verhindert mehrfache Tab-Erstellung
+  const creatingTabRef = useRef<boolean>(false);
 
   // ============================================================================
   // BOUNDS CALCULATION - Canvas-Koordinaten zu Screen-Koordinaten
   // ============================================================================
-  
+
   const calculateScreenBounds = useCallback(() => {
     // Canvas-Position zu Screen-Position konvertieren
-    // viewport.x/y sind die Offset-Werte, scale ist der Zoom
     const screenX = (item.x * viewport.scale) + viewport.x;
     const screenY = (item.y * viewport.scale) + viewport.y;
     const screenWidth = item.width * viewport.scale;
     const screenHeight = item.height * viewport.scale;
-    
-    // Header-Höhe des Tab-Items (36px) + App-Toolbar (48px)
-    const tabHeaderHeight = 36;
+
+    // Header-Höhe des Tab-Items (40px = h-10) + App-Toolbar (48px = h-12)
+    const tabHeaderHeight = 40;
     const appToolbarHeight = 48;
-    
+    const borderWidth = 2; // border-2 = 2px
+
     return {
-      x: Math.round(screenX),
-      y: Math.round(screenY + tabHeaderHeight + appToolbarHeight),
-      width: Math.round(Math.max(screenWidth, 100)),
-      height: Math.round(Math.max(screenHeight - tabHeaderHeight, 100)),
+      x: Math.round(screenX + borderWidth),
+      y: Math.round(screenY + tabHeaderHeight + borderWidth + appToolbarHeight),
+      width: Math.round(Math.max(screenWidth - (borderWidth * 2), 100)),
+      height: Math.round(Math.max(screenHeight - tabHeaderHeight - (borderWidth * 2), 100)),
     };
   }, [item.x, item.y, item.width, item.height, viewport.x, viewport.y, viewport.scale]);
 
@@ -73,40 +83,26 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
   // TAB CREATION & SYNC
   // ============================================================================
 
-  // Tab erstellen wenn URL vorhanden und noch nicht erstellt ODER URL geändert hat
+  // Tab erstellen wenn URL vorhanden
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:76',message:'Tab creation effect triggered',data:{itemId:item.id,itemUrl:item.url,tabCreated,itemX:item.x,itemY:item.y},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     const existingTab = getTabByItemId(item.id);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:79',message:'Existing tab check',data:{itemId:item.id,existingTab:!!existingTab,existingTabId:existingTab?.id,existingTabUrl:existingTab?.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
-    
+
     // Wenn Tab bereits existiert und URL gleich ist, nichts tun
     if (existingTab && existingTab.url === item.url) {
       if (!tabCreated) {
         setTabCreated(true);
       }
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:85',message:'Tab exists, early return',data:{itemId:item.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       return;
     }
-    
+
     // Wenn Tab existiert aber URL anders ist, Tab schließen und neu erstellen
     if (existingTab && existingTab.url !== item.url) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:88',message:'Tab URL changed, closing',data:{itemId:item.id,oldUrl:existingTab.url,newUrl:item.url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       closeTab(existingTab.id).then(() => {
         setTabCreated(false);
       });
       return;
     }
-    
+
     // Wenn keine URL, nichts tun
     if (!item.url) {
       if (existingTab) {
@@ -115,70 +111,38 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
       }
       return;
     }
-    
-    // Tab erstellen wenn noch nicht vorhanden und noch nicht erstellt
+
+    // Tab erstellen wenn noch nicht vorhanden
     if (!tabCreated && !existingTab && !creatingTabRef.current) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:105',message:'Creating new tab',data:{itemId:item.id,url:item.url,tabCreated,existingTab:!!existingTab,creatingTab:creatingTabRef.current},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
-      
-      creatingTabRef.current = true; // Flag setzen um mehrfache Erstellung zu verhindern
+      creatingTabRef.current = true;
       const bounds = calculateScreenBounds();
-      
+
       createTab(item.id, item.url, bounds).then((tabId) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:108',message:'Tab created callback',data:{itemId:item.id,tabId,success:!!tabId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        creatingTabRef.current = false; // Flag zurücksetzen
+        creatingTabRef.current = false;
         if (tabId) {
           setTabCreated(true);
-        } else {
-          // Falls Fehler, Flag zurücksetzen damit Retry möglich ist
-          creatingTabRef.current = false;
         }
-      }).catch((error) => {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:115',message:'Tab creation failed',data:{itemId:item.id,error:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-        // #endregion
-        creatingTabRef.current = false; // Flag zurücksetzen bei Fehler
+      }).catch(() => {
+        creatingTabRef.current = false;
       });
     }
-  }, [item.url, item.id, tabCreated, createTab, getTabByItemId, closeTab]); // calculateScreenBounds entfernt aus Dependencies
+  }, [item.url, item.id, tabCreated, createTab, getTabByItemId, closeTab, calculateScreenBounds]);
 
   // Bounds synchronisieren wenn sich Position/Größe/Viewport ändert
+  // WICHTIG: Sofortige Updates ohne RAF für bessere Synchronisation beim Panning
   useEffect(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:108',message:'Bounds sync effect triggered',data:{itemId:item.id,hasTab:!!tab,isFullscreen:tab?.isFullscreen,itemX:item.x,itemY:item.y},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-    
     if (!tab || tab.isFullscreen) return;
 
     const bounds = calculateScreenBounds();
     const boundsKey = JSON.stringify(bounds);
-    
+
     // Nur updaten wenn sich wirklich was geändert hat
     if (boundsKey === lastBoundsRef.current) return;
     lastBoundsRef.current = boundsKey;
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/825b47f8-8cbf-4779-8539-e25d48125528',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'WebTabItem.tsx:118',message:'Updating tab bounds',data:{tabId:tab.id,bounds,itemX:item.x,itemY:item.y},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
-    // RAF für Performance
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-    }
-    
-    rafRef.current = requestAnimationFrame(() => {
-      updateTabBounds(tab.id, bounds);
-    });
-
-    return () => {
-      if (rafRef.current) {
-        cancelAnimationFrame(rafRef.current);
-      }
-    };
-  }, [tab, calculateScreenBounds, updateTabBounds, item.x, item.y, item.width, item.height]);
+    // Sofortige Updates für perfekte Synchronisation
+    updateTabBounds(tab.id, bounds);
+  }, [tab, calculateScreenBounds, updateTabBounds, item.x, item.y, item.width, item.height, viewport.x, viewport.y, viewport.scale]);
 
   // Tab schließen wenn Item entfernt wird
   useEffect(() => {
@@ -192,10 +156,19 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
   // Prüfe ob Tab noch existiert (z.B. nach Board-Wechsel)
   useEffect(() => {
     if (tabCreated && !tab) {
-      // Tab wurde geschlossen, reset state
       setTabCreated(false);
     }
   }, [tab, tabCreated]);
+
+  // Focus Zone: Webview verstecken wenn außerhalb der Zone
+  useEffect(() => {
+    if (tab && focusMode) {
+      setTabVisible(tab.id, isInFocus);
+    } else if (tab && !focusMode) {
+      // Wenn Focus Mode deaktiviert wird, alle Tabs wieder sichtbar machen
+      setTabVisible(tab.id, true);
+    }
+  }, [tab, focusMode, isInFocus, setTabVisible]);
 
   // ============================================================================
   // EVENT HANDLERS
@@ -203,7 +176,7 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
 
   const handleMouseDown = (e: React.MouseEvent) => {
     e.stopPropagation();
-    unfocusAllTabs(); // Canvas-Click = unfocus alle Tabs
+    unfocusAllTabs();
     startDrag(e, item.id);
   };
 
@@ -243,7 +216,6 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
     }
     if (finalUrl && finalUrl !== item.url) {
       updateItem(item.id, { url: finalUrl, content: new URL(finalUrl).hostname });
-      // Tab wird durch useEffect neu erstellt
       if (tab) {
         closeTab(tab.id);
         setTabCreated(false);
@@ -277,16 +249,23 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
           width: item.width,
           height: item.height,
         }}
-        className="absolute bg-slate-900/50 rounded-xl border border-cyan-500/50 flex items-center justify-center backdrop-blur-sm"
+        className="absolute bg-gray-900/80 rounded-2xl border-2 border-blue-500/50 flex items-center justify-center backdrop-blur-sm"
       >
-        <div className="text-center text-white/60">
-          <Maximize2 size={32} className="mx-auto mb-2 opacity-50" />
-          <p className="text-sm">Fullscreen</p>
-          <p className="text-xs opacity-60">ESC zum Beenden</p>
+        <div className="text-center text-white/70">
+          <Maximize2 size={28} className="mx-auto mb-2 opacity-60" />
+          <p className="text-sm font-medium">Fullscreen Modus</p>
+          <p className="text-xs opacity-60 mt-1">ESC zum Beenden</p>
         </div>
       </div>
     );
   }
+
+  // Dimming styles for items outside focus zone
+  const dimmedStyle = !isInFocus ? {
+    opacity: 0.3,
+    filter: 'grayscale(50%)',
+    pointerEvents: 'none' as const,
+  } : {};
 
   return (
     <div
@@ -295,52 +274,53 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
         top: item.y,
         width: item.width,
         height: item.height,
+        ...dimmedStyle,
       }}
       className={`
-        absolute bg-slate-900 rounded-xl border overflow-hidden select-none group flex flex-col
-        shadow-2xl shadow-black/50 transition-shadow
-        ${isSelected 
-          ? 'border-cyan-500 ring-2 ring-cyan-500/30' 
-          : 'border-slate-700 hover:border-slate-600'
+        absolute rounded-2xl overflow-hidden select-none group flex flex-col
+        bg-white border-2 transition-all duration-150
+        ${isSelected
+          ? 'border-blue-500 shadow-xl shadow-blue-500/20 ring-4 ring-blue-500/10'
+          : 'border-gray-200 shadow-lg hover:shadow-xl hover:border-gray-300'
         }
-        ${tab?.isFocused ? 'ring-2 ring-cyan-400/50 border-cyan-400' : ''}
+        ${tab?.isFocused ? 'border-blue-400 shadow-xl shadow-blue-400/25' : ''}
       `}
     >
-      {/* Header Bar - Draggable */}
+      {/* Header Bar - Clean macOS style */}
       <div
         onMouseDown={handleMouseDown}
         onDoubleClick={handleDoubleClick}
-        className="h-9 bg-slate-800 border-b border-slate-700 flex items-center gap-2 px-2.5 cursor-move shrink-0"
+        className="h-10 bg-gray-100 border-b border-gray-200 flex items-center gap-3 px-3 cursor-move shrink-0"
       >
-        {/* Window Controls */}
-        <div className="flex items-center gap-1.5">
+        {/* Window Controls - macOS style */}
+        <div className="flex items-center gap-2">
           <button
             onClick={handleClose}
-            className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"
+            className="w-3 h-3 rounded-full bg-red-400 hover:bg-red-500 transition-colors shadow-sm"
             title="Schließen"
           />
           <button
             onClick={() => {/* minimize not implemented */}}
-            className="w-3 h-3 rounded-full bg-yellow-500 hover:bg-yellow-400 transition-colors"
+            className="w-3 h-3 rounded-full bg-yellow-400 hover:bg-yellow-500 transition-colors shadow-sm"
             title="Minimieren"
           />
           <button
             onClick={handleFullscreen}
-            className="w-3 h-3 rounded-full bg-green-500 hover:bg-green-400 transition-colors"
-            title="Fullscreen"
+            className="w-3 h-3 rounded-full bg-green-400 hover:bg-green-500 transition-colors shadow-sm"
+            title="Vollbild"
           />
         </div>
 
-        {/* URL Bar */}
-        <div className="flex-1 flex items-center ml-2">
+        {/* URL Bar - Clean design */}
+        <div className="flex-1 flex items-center">
           <div className={`
-            flex-1 flex items-center gap-2 px-2.5 py-1 rounded-md transition-all
-            ${isUrlFocused 
-              ? 'bg-slate-600 ring-1 ring-cyan-500' 
-              : 'bg-slate-700/80 hover:bg-slate-700'
+            flex-1 flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all
+            ${isUrlFocused
+              ? 'bg-white ring-2 ring-blue-500 shadow-sm'
+              : 'bg-gray-200/80 hover:bg-gray-200'
             }
           `}>
-            <Globe size={11} className="text-slate-400 shrink-0" />
+            <Globe size={12} className="text-gray-400 shrink-0" />
             <input
               type="text"
               value={urlInput}
@@ -353,53 +333,54 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
               }}
               onClick={(e) => e.stopPropagation()}
               placeholder="URL eingeben..."
-              className="flex-1 text-xs bg-transparent outline-none text-slate-200 placeholder-slate-500 min-w-0"
+              className="flex-1 text-xs bg-transparent outline-none text-gray-700 placeholder-gray-400 min-w-0 font-medium"
             />
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={handleFullscreen}
-            className="p-1.5 rounded hover:bg-slate-700 text-slate-400 hover:text-cyan-400 transition-colors"
-            title={tab?.isFullscreen ? 'Fullscreen beenden' : 'Fullscreen'}
-          >
-            {tab?.isFullscreen ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
-          </button>
-        </div>
+        {/* Fullscreen Button */}
+        <button
+          onClick={handleFullscreen}
+          className="p-1.5 rounded-lg hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-colors"
+          title="Vollbild"
+        >
+          <Maximize2 size={14} />
+        </button>
       </div>
 
-      {/* Content Area - Click to focus tab */}
-      <div 
-        className="flex-1 relative cursor-pointer"
+      {/* Content Area - Der Webview sitzt hier */}
+      <div
+        className="flex-1 relative bg-white"
         onClick={handleTabClick}
         onDoubleClick={handleDoubleClick}
       >
         {/* Placeholder während Tab lädt oder keine URL */}
         {!item.url ? (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
             <div className="text-center">
-              <Globe size={40} className="mx-auto mb-3 text-slate-600" />
-              <p className="text-sm text-slate-500">URL eingeben</p>
+              <div className="w-16 h-16 rounded-2xl bg-gray-200 flex items-center justify-center mx-auto mb-4">
+                <Globe size={28} className="text-gray-400" />
+              </div>
+              <p className="text-sm text-gray-500 font-medium">URL eingeben</p>
+              <p className="text-xs text-gray-400 mt-1">um Webseite zu laden</p>
             </div>
           </div>
         ) : !tabCreated ? (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-              <p className="text-sm text-slate-400">Lade Webview...</p>
+              <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+              <p className="text-sm text-gray-600 font-medium">Lädt...</p>
+              <p className="text-xs text-gray-400 mt-1 max-w-[200px] truncate">{item.url}</p>
             </div>
           </div>
         ) : (
-          /* Transparentes Overlay - Webview ist dahinter */
-          <div className="absolute inset-0 bg-transparent">
-            {/* Focus Indicator */}
+          /* Der native Webview rendert hier - komplett transparent */
+          <div className="absolute inset-0">
+            {/* Interaction overlay nur wenn nicht fokussiert */}
             {!tab?.isFocused && (
-              <div className="absolute inset-0 bg-slate-900/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                <div className="text-center text-white">
-                  <p className="text-sm font-medium">Klicken zum Aktivieren</p>
-                  <p className="text-xs opacity-60 mt-1">Doppelklick für Fullscreen</p>
+              <div className="absolute inset-0 bg-transparent hover:bg-black/5 flex items-center justify-center opacity-0 hover:opacity-100 transition-all cursor-pointer">
+                <div className="bg-white/95 backdrop-blur-sm px-4 py-2 rounded-lg shadow-lg border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700">Klicken zum Aktivieren</p>
                 </div>
               </div>
             )}
@@ -407,17 +388,21 @@ export const WebTabItem: React.FC<WebTabItemProps> = ({ item }) => {
         )}
       </div>
 
-      {/* Resize Handle */}
+      {/* Resize Handle - Subtle corner */}
       <div
-        className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize opacity-0 group-hover:opacity-100 hover:opacity-100 flex items-end justify-end p-1.5 z-10"
+        className="absolute bottom-1 right-1 w-5 h-5 cursor-nwse-resize opacity-0 group-hover:opacity-100 transition-opacity z-10 flex items-end justify-end"
         onMouseDown={(e) => {
           e.stopPropagation();
           startResize(e, item.id);
         }}
       >
-        <div className="w-2.5 h-2.5 border-r-2 border-b-2 border-slate-500 rounded-br-sm" />
+        <svg width="10" height="10" viewBox="0 0 10 10" className="text-gray-400">
+          <path d="M9 1L1 9M9 5L5 9M9 9L9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+        </svg>
       </div>
     </div>
   );
 };
 
+// Memoized export
+export const WebTabItem = memo(WebTabItemComponent);

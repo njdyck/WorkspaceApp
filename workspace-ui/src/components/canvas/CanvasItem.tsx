@@ -1,20 +1,36 @@
-import React from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Link2 } from 'lucide-react';
 import { CanvasItem as CanvasItemType } from '@/models';
 import { useCanvasStore, useUIStore } from '@/stores';
 import { useItemDrag, useItemResize } from '@/hooks';
+import { isItemInFocusZone } from '@/utils/geometry';
 
 interface CanvasItemProps {
   item: CanvasItemType;
 }
 
-export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
-  const { selectedIds, isConnecting, connectingFromId, startConnecting, finishConnecting } = useCanvasStore();
-  const { openSidePanel } = useUIStore();
+const CanvasItemComponent: React.FC<CanvasItemProps> = ({ item }) => {
+  // Granulare Zustand-Selektoren - nur re-render wenn sich relevante Daten ändern
+  const selectedIds = useCanvasStore((s) => s.selectedIds);
+  const isConnecting = useCanvasStore((s) => s.isConnecting);
+  const connectingFromId = useCanvasStore((s) => s.connectingFromId);
+  const startConnecting = useCanvasStore((s) => s.startConnecting);
+  const finishConnecting = useCanvasStore((s) => s.finishConnecting);
+
+  const openSidePanel = useUIStore((s) => s.openSidePanel);
+  const openContextMenu = useUIStore((s) => s.openContextMenu);
+  const focusMode = useUIStore((s) => s.focusMode);
+  const focusZone = useUIStore((s) => s.focusZone);
   const { startDrag } = useItemDrag();
   const { startResize } = useItemResize();
 
   const isSelected = selectedIds.has(item.id);
+
+  // Focus Zone awareness
+  const isInFocus = useMemo(() => {
+    if (!focusMode || !focusZone) return true;
+    return isItemInFocusZone(item, focusZone);
+  }, [focusMode, focusZone, item.x, item.y, item.width, item.height]);
   const isGroup = item.badge === 'group';
   const isConnectingFrom = connectingFromId === item.id;
 
@@ -40,6 +56,12 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
     startConnecting(item.id);
   };
 
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openContextMenu(e.clientX, e.clientY, item.id);
+  }, [openContextMenu, item.id]);
+
   const getBadgeColor = () => {
     switch (item.badge) {
       case 'link': return 'bg-blue-50 text-blue-600 border-blue-100';
@@ -63,19 +85,27 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
   // Highlight wenn dieses Item das Ziel einer Verbindung sein kann
   const canBeTarget = isConnecting && !isConnectingFrom;
 
+  // Dimming styles for items outside focus zone
+  const dimmedStyle = !isInFocus ? {
+    opacity: 0.3,
+    filter: 'grayscale(50%)',
+    pointerEvents: 'none' as const,
+  } : {};
+
   // Group Rendering (Container Style)
   if (isGroup) {
     const bgColor = item.color && item.color !== 'transparent' ? item.color : 'rgba(249, 250, 251, 0.3)';
-    const borderColor = isSelected 
+    const borderColor = isSelected
       ? 'rgba(96, 165, 250, 1)' // blue-400
-      : item.color && item.color !== 'transparent' 
+      : item.color && item.color !== 'transparent'
         ? 'rgba(0,0,0,0.05)' // subtle border for colored groups
         : 'rgba(229, 231, 235, 0.5)'; // gray-200/50
 
     return (
       <div
-        onMouseDown={handleMouseDown}
-        onDoubleClick={handleDoubleClick}
+        onMouseDown={isInFocus ? handleMouseDown : undefined}
+        onDoubleClick={isInFocus ? handleDoubleClick : undefined}
+        onContextMenu={isInFocus ? handleContextMenu : undefined}
         style={{
           left: item.x,
           top: item.y,
@@ -83,11 +113,13 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
           height: item.height,
           backgroundColor: bgColor,
           borderColor: borderColor,
+          ...dimmedStyle,
+          transition: 'opacity 0.2s, filter 0.2s',
         }}
         className={`
           absolute rounded-2xl border-2 transition-shadow select-none group backdrop-blur-sm
-          ${isSelected 
-            ? 'shadow-md ring-2 ring-blue-100' 
+          ${isSelected
+            ? 'shadow-md ring-2 ring-blue-100'
             : 'hover:border-gray-300/80'
           }
           ${canBeTarget ? 'ring-2 ring-green-300 border-green-400' : ''}
@@ -122,19 +154,22 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
   // Standard Item Rendering
   return (
     <div
-      onMouseDown={handleMouseDown}
-      onDoubleClick={handleDoubleClick}
+      onMouseDown={isInFocus ? handleMouseDown : undefined}
+      onDoubleClick={isInFocus ? handleDoubleClick : undefined}
+      onContextMenu={isInFocus ? handleContextMenu : undefined}
       style={{
         left: item.x,
         top: item.y,
         width: item.width,
         height: item.height,
+        ...dimmedStyle,
+        transition: 'opacity 0.2s, filter 0.2s',
       }}
       className={`
-        absolute bg-white rounded-lg border p-4 cursor-pointer transition-shadow select-none group z-10
-        ${isSelected 
-          ? 'border-blue-400 shadow-md ring-2 ring-blue-100' 
-          : 'border-gray-100 shadow-sm hover:shadow-md'
+        absolute bg-white dark:bg-gray-800 rounded-lg border p-4 cursor-pointer transition-shadow select-none group z-10
+        ${isSelected
+          ? 'border-blue-400 shadow-md ring-2 ring-blue-100 dark:ring-blue-900'
+          : 'border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-md'
         }
         ${canBeTarget ? 'ring-2 ring-green-300 border-green-400 shadow-lg' : ''}
         ${isConnectingFrom ? 'ring-2 ring-blue-300 border-blue-400' : ''}
@@ -142,7 +177,7 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
     >
       <div className="flex flex-col h-full">
         <div className="flex justify-between items-start mb-2">
-          <h3 className="text-gray-800 font-medium text-sm truncate flex-1 mr-2">
+          <h3 className="text-gray-800 dark:text-gray-100 font-medium text-sm truncate flex-1 mr-2">
             {item.content}
           </h3>
           {item.badge && (
@@ -180,3 +215,6 @@ export const CanvasItem: React.FC<CanvasItemProps> = ({ item }) => {
     </div>
   );
 };
+
+// Memoized export - re-renders nur wenn sich item oder selection ändert
+export const CanvasItem = memo(CanvasItemComponent);

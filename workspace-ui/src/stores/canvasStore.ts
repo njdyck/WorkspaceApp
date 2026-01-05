@@ -4,11 +4,18 @@ import { SelectionRect } from '@/types';
 import { generateId } from '@/utils';
 import { saveBoard, loadCurrentBoard, createNewBoard } from '@/services/persistence';
 
+// History Snapshot für Undo/Redo
+interface HistorySnapshot {
+  items: Map<string, CanvasItem>;
+  connections: Map<string, Connection>;
+  timestamp: number;
+}
+
 interface CanvasState {
   // Board Info
   boardId: string | null;
   boardName: string;
-  
+
   // Canvas State
   viewport: Viewport;
   items: Map<string, CanvasItem>;
@@ -16,10 +23,15 @@ interface CanvasState {
   selectedIds: Set<string>;
   isPanning: boolean;
   selectionRect: SelectionRect | null;
-  
+
   // Connection Mode
   isConnecting: boolean;
   connectingFromId: string | null;
+
+  // Undo/Redo History
+  history: HistorySnapshot[];
+  historyIndex: number;
+  maxHistorySize: number;
 
   // Actions
   pan: (deltaX: number, deltaY: number) => void;
@@ -49,6 +61,17 @@ interface CanvasState {
   loadBoard: () => void;
   newBoard: (name?: string) => void;
   setBoardName: (name: string) => void;
+
+  // Undo/Redo Actions
+  undo: () => void;
+  redo: () => void;
+  pushHistory: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
+  // Duplicate Item
+  duplicateItem: (id: string) => void;
+  duplicateSelected: () => void;
 }
 
 // Auto-Save Debounce
@@ -69,6 +92,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectionRect: null,
   isConnecting: false,
   connectingFromId: null,
+  history: [],
+  historyIndex: -1,
+  maxHistorySize: 50,
 
   pan: (deltaX, deltaY) => {
     set((state) => ({
@@ -113,6 +139,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   addItem: (item) => {
+    get().pushHistory();
     set((state) => {
       const newItems = new Map(state.items);
       newItems.set(item.id, item);
@@ -133,12 +160,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   removeItem: (id) => {
+    get().pushHistory();
     set((state) => {
       const newItems = new Map(state.items);
       newItems.delete(id);
       const newSelectedIds = new Set(state.selectedIds);
       newSelectedIds.delete(id);
-      
+
       // Auch zugehörige Connections entfernen
       const newConnections = new Map(state.connections);
       state.connections.forEach((conn, connId) => {
@@ -146,7 +174,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
           newConnections.delete(connId);
         }
       });
-      
+
       return { items: newItems, selectedIds: newSelectedIds, connections: newConnections };
     });
     autoSave(() => get().saveCurrentBoard());
@@ -201,7 +229,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // Connection Actions
   addConnection: (fromId, toId, label) => {
     if (fromId === toId) return; // Keine Selbst-Verbindungen
-    
+
+    get().pushHistory();
     set((state) => {
       // Prüfen ob Connection bereits existiert
       const exists = Array.from(state.connections.values()).some(
@@ -227,6 +256,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   },
 
   removeConnection: (connectionId) => {
+    get().pushHistory();
     set((state) => {
       const newConnections = new Map(state.connections);
       newConnections.delete(connectionId);
@@ -329,6 +359,135 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setBoardName: (name) => {
     set({ boardName: name });
+    autoSave(() => get().saveCurrentBoard());
+  },
+
+  // Undo/Redo Implementation
+  pushHistory: () => {
+    const { items, connections, history, historyIndex, maxHistorySize } = get();
+    const snapshot: HistorySnapshot = {
+      items: new Map(items),
+      connections: new Map(connections),
+      timestamp: Date.now(),
+    };
+
+    // Remove any future history if we're not at the end
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(snapshot);
+
+    // Limit history size
+    if (newHistory.length > maxHistorySize) {
+      newHistory.shift();
+    }
+
+    set({
+      history: newHistory,
+      historyIndex: newHistory.length - 1,
+    });
+  },
+
+  undo: () => {
+    const { history, historyIndex, items, connections } = get();
+
+    if (historyIndex < 0) return;
+
+    // Save current state if this is the first undo
+    if (historyIndex === history.length - 1) {
+      const currentSnapshot: HistorySnapshot = {
+        items: new Map(items),
+        connections: new Map(connections),
+        timestamp: Date.now(),
+      };
+      const newHistory = [...history];
+      if (newHistory.length === 0 || newHistory[newHistory.length - 1].timestamp !== currentSnapshot.timestamp) {
+        newHistory.push(currentSnapshot);
+        set({ history: newHistory });
+      }
+    }
+
+    const prevSnapshot = history[historyIndex];
+    if (prevSnapshot) {
+      set({
+        items: new Map(prevSnapshot.items),
+        connections: new Map(prevSnapshot.connections),
+        historyIndex: historyIndex - 1,
+        selectedIds: new Set(),
+      });
+      autoSave(() => get().saveCurrentBoard());
+    }
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get();
+
+    if (historyIndex >= history.length - 1) return;
+
+    const nextSnapshot = history[historyIndex + 2] || history[historyIndex + 1];
+    if (nextSnapshot) {
+      set({
+        items: new Map(nextSnapshot.items),
+        connections: new Map(nextSnapshot.connections),
+        historyIndex: historyIndex + 1,
+        selectedIds: new Set(),
+      });
+      autoSave(() => get().saveCurrentBoard());
+    }
+  },
+
+  canUndo: () => get().historyIndex >= 0,
+  canRedo: () => get().historyIndex < get().history.length - 1,
+
+  // Duplicate Functions
+  duplicateItem: (id) => {
+    const { items, pushHistory } = get();
+    const item = items.get(id);
+    if (!item) return;
+
+    pushHistory();
+
+    const newItem: CanvasItem = {
+      ...item,
+      id: generateId(),
+      x: item.x + 20,
+      y: item.y + 20,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    set((state) => {
+      const newItems = new Map(state.items);
+      newItems.set(newItem.id, newItem);
+      return { items: newItems, selectedIds: new Set([newItem.id]) };
+    });
+    autoSave(() => get().saveCurrentBoard());
+  },
+
+  duplicateSelected: () => {
+    const { selectedIds, items, pushHistory } = get();
+    if (selectedIds.size === 0) return;
+
+    pushHistory();
+
+    const newItems = new Map(items);
+    const newSelectedIds = new Set<string>();
+
+    selectedIds.forEach((id) => {
+      const item = items.get(id);
+      if (item) {
+        const newItem: CanvasItem = {
+          ...item,
+          id: generateId(),
+          x: item.x + 20,
+          y: item.y + 20,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        };
+        newItems.set(newItem.id, newItem);
+        newSelectedIds.add(newItem.id);
+      }
+    });
+
+    set({ items: newItems, selectedIds: newSelectedIds });
     autoSave(() => get().saveCurrentBoard());
   },
 }));

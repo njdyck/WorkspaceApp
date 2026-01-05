@@ -1,4 +1,4 @@
-import { Point, Rect, SelectionRect } from '@/types';
+import { Point, Rect, SelectionRect, FocusZone } from '@/types';
 import { CanvasItem } from '@/models';
 
 export const isPointInRect = (point: Point, rect: Rect): boolean => {
@@ -70,5 +70,27 @@ export const isItemInViewport = (
   };
   return doRectsIntersect(viewportRect, itemRect);
 };
+
+export const isItemInFocusZone = (
+  item: CanvasItem,
+  zone: FocusZone
+): boolean => {
+  const itemRect: Rect = {
+    x: item.x,
+    y: item.y,
+    width: item.width,
+    height: item.height,
+  };
+  const zoneRect: Rect = {
+    x: zone.x,
+    y: zone.y,
+    width: zone.width,
+    height: zone.height,
+  };
+  return doRectsIntersect(itemRect, zoneRect);
+};
+
+
+
 
 

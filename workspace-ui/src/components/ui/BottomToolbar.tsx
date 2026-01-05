@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid, ArrowRight, X } from 'lucide-react';
+import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid, ArrowRight, X, Focus, Grid3X3, Keyboard } from 'lucide-react';
 import { useUIStore, useCanvasStore } from '@/stores';
 import { autoClusterItems } from '@/services/clustering';
 import { generateId } from '@/utils';
 import { DEFAULT_WEBVIEW_WIDTH, DEFAULT_WEBVIEW_HEIGHT } from '@/models';
 
 export const BottomToolbar: React.FC = () => {
-  const { openAddModal } = useUIStore();
+  const { openAddModal, focusMode, toggleFocusMode, openSearch, openHelpModal, toggleGridSnapping, gridSnapping } = useUIStore();
   const { items, updateItem, viewport, addItem } = useCanvasStore();
   const [showAIMenu, setShowAIMenu] = useState(false);
   const [isClustering, setIsClustering] = useState(false);
@@ -14,6 +14,7 @@ export const BottomToolbar: React.FC = () => {
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [showWebviewInput, setShowWebviewInput] = useState(false);
   const [webviewUrl, setWebviewUrl] = useState('https://');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const handleAutoCluster = async (useAI: boolean = false) => {
     setIsClustering(true);
@@ -278,8 +279,10 @@ export const BottomToolbar: React.FC = () => {
 
         {/* Search */}
         <button
+          onClick={openSearch}
           className="group p-1.5 rounded-full hover:bg-gray-50 transition-colors flex items-center justify-center"
-          aria-label="Suche"
+          aria-label="Suche (⌘F)"
+          title="Suche (⌘F)"
         >
           <Search
             size={18}
@@ -288,23 +291,96 @@ export const BottomToolbar: React.FC = () => {
           />
         </button>
 
-        <div className="w-px h-4 bg-gray-200 mx-1" />
-
-        {/* More */}
+        {/* Focus Mode Toggle */}
         <button
-          className="group p-1.5 rounded-full hover:bg-gray-50 transition-colors flex items-center justify-center"
-          aria-label="Mehr"
+          onClick={toggleFocusMode}
+          className={`group p-1.5 rounded-full transition-colors flex items-center justify-center ${
+            focusMode ? 'bg-amber-100' : 'hover:bg-gray-50'
+          }`}
+          aria-label="Fokus-Modus"
+          title={focusMode ? 'Fokus-Modus beenden (⌘.)' : 'Fokus-Modus aktivieren (⌘.)'}
         >
-          <MoreHorizontal
+          <Focus
             size={18}
-            className="text-gray-500 group-hover:text-gray-800 transition-colors"
+            className={`transition-colors ${
+              focusMode
+                ? 'text-amber-600'
+                : 'text-gray-500 group-hover:text-gray-800'
+            }`}
             strokeWidth={1.5}
           />
         </button>
+
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+
+        {/* More Menu */}
+        <div className="relative">
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            className={`group p-1.5 rounded-full transition-colors flex items-center justify-center ${
+              showMoreMenu ? 'bg-gray-100' : 'hover:bg-gray-50'
+            }`}
+            aria-label="Mehr"
+          >
+            <MoreHorizontal
+              size={18}
+              className={`transition-colors ${
+                showMoreMenu ? 'text-gray-800' : 'text-gray-500 group-hover:text-gray-800'
+              }`}
+              strokeWidth={1.5}
+            />
+          </button>
+
+          {/* More Menu Popup */}
+          {showMoreMenu && (
+            <div className="absolute bottom-full right-0 mb-2 w-52 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+              <div className="p-2">
+                {/* Grid Snapping */}
+                <button
+                  onClick={() => {
+                    toggleGridSnapping();
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                      gridSnapping ? 'bg-blue-100' : 'bg-gray-100'
+                    }`}>
+                      <Grid3X3 size={16} className={gridSnapping ? 'text-blue-600' : 'text-gray-600'} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-800">Grid-Snapping</div>
+                      <div className="text-xs text-gray-500">⌘G</div>
+                    </div>
+                  </div>
+                  <div className={`w-2 h-2 rounded-full ${gridSnapping ? 'bg-blue-500' : 'bg-gray-300'}`} />
+                </button>
+
+                {/* Keyboard Shortcuts */}
+                <button
+                  onClick={() => {
+                    openHelpModal();
+                    setShowMoreMenu(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Keyboard size={16} className="text-gray-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Tastenkürzel</div>
+                    <div className="text-xs text-gray-500">?</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Click outside to close menus */}
-      {(showAIMenu || showWebviewInput) && (
+      {(showAIMenu || showWebviewInput || showMoreMenu) && (
         <div
           className="fixed inset-0 z-[-1]"
           onClick={() => {
@@ -312,6 +388,7 @@ export const BottomToolbar: React.FC = () => {
             setShowApiKeyInput(false);
             setShowWebviewInput(false);
             setWebviewUrl('https://');
+            setShowMoreMenu(false);
           }}
         />
       )}
