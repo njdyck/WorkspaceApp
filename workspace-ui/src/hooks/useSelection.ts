@@ -12,13 +12,13 @@ export const useSelection = () => {
     (e: React.MouseEvent, canvasRef: HTMLDivElement | null) => {
       if (isPanMode(e)) return false;
       if (e.button !== 0) return false;
-      
+
       const rect = canvasRef?.getBoundingClientRect();
       if (!rect) return false;
 
-      // Convert to canvas coordinates
-      const x = e.clientX - rect.left - viewport.x;
-      const y = e.clientY - rect.top - viewport.y;
+      // Convert to canvas coordinates (accounting for scale)
+      const x = (e.clientX - rect.left - viewport.x) / viewport.scale;
+      const y = (e.clientY - rect.top - viewport.y) / viewport.scale;
 
       setIsSelecting(true);
       setStartPoint({ x, y });
@@ -35,8 +35,9 @@ export const useSelection = () => {
       const rect = canvasRef?.getBoundingClientRect();
       if (!rect) return;
 
-      const x = e.clientX - rect.left - viewport.x;
-      const y = e.clientY - rect.top - viewport.y;
+      // Convert to canvas coordinates (accounting for scale) - same as startSelection
+      const x = (e.clientX - rect.left - viewport.x) / viewport.scale;
+      const y = (e.clientY - rect.top - viewport.y) / viewport.scale;
 
       const newRect: SelectionRect = {
         startX: startPoint.x,

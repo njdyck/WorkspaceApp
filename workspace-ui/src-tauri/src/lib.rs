@@ -1,5 +1,5 @@
 use tauri::{
-    Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder,
+    DragDropEvent, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewUrl, WebviewWindowBuilder,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -413,6 +413,151 @@ async fn close_all_orphaned_webviews(
 }
 
 // ============================================================================
+// AI CONTENT EXTRACTION
+// ============================================================================
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct WebviewContent {
+    pub tab_id: String,
+    pub url: String,
+    pub title: Option<String>,
+    pub content: Option<String>,
+}
+
+/// Extrahiert Content aus einem Webview für AI-Analyse
+/// Hinweis: Content-Extraktion aus externen URLs ist limitiert durch Cross-Origin
+#[tauri::command]
+async fn extract_webview_content(
+    app: tauri::AppHandle,
+    _state: tauri::State<'_, Mutex<WebTabState>>,
+    tab_id: String,
+) -> Result<WebviewContent, String> {
+    let webview = app
+        .get_webview_window(&tab_id)
+        .ok_or("Web tab not found")?;
+
+    // URL aus Webview holen
+    let url = webview.url()
+        .map_err(|e| format!("Failed to get URL: {}", e))?
+        .to_string();
+
+    // Versuche Title zu extrahieren via eval
+    // Da eval() keinen Return-Wert hat, injizieren wir ein Script das den Title
+    // in den Window-Title setzt, den wir dann auslesen können
+    webview.eval("document.title && (document.title = document.title)")
+        .ok();
+
+    let title = webview.title().ok();
+
+    // Für Content-Extraktion: Versuche innerText zu bekommen
+    // Dies funktioniert nur wenn die Seite es erlaubt (Same-Origin oder permissive CORS)
+    // Wir nutzen einen Trick: Setze den Content temporär als data-attribute
+    let content_script = r#"
+        (function() {
+            try {
+                const text = document.body ? document.body.innerText.substring(0, 10000) : '';
+                document.documentElement.setAttribute('data-extracted-content', text);
+            } catch(e) {
+                document.documentElement.setAttribute('data-extracted-content', '');
+            }
+        })();
+    "#;
+
+    webview.eval(content_script).ok();
+
+    // Kurz warten damit Script ausgeführt wird
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    // Content können wir leider nicht direkt auslesen ohne IPC
+    // Für MVP: Nur URL und Title zurückgeben, Content bleibt None
+    // Spätere Erweiterung: WebView IPC für Content-Extraktion
+
+    Ok(WebviewContent {
+        tab_id,
+        url,
+        title,
+        content: None, // TODO: Implement via IPC in future version
+    })
+}
+
+/// Extrahiert Content von allen offenen Webviews
+#[tauri::command]
+async fn extract_all_webview_contents(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<WebTabState>>,
+) -> Result<Vec<WebviewContent>, String> {
+    let tab_ids: Vec<String> = {
+        let tab_state = state.lock().unwrap();
+        tab_state.tabs.keys().cloned().collect()
+    };
+
+    let mut contents = Vec::new();
+
+    for tab_id in tab_ids {
+        if let Some(webview) = app.get_webview_window(&tab_id) {
+            let url = webview.url()
+                .map(|u| u.to_string())
+                .unwrap_or_default();
+            let title = webview.title().ok();
+
+            contents.push(WebviewContent {
+                tab_id,
+                url,
+                title,
+                content: None,
+            });
+        }
+    }
+
+    Ok(contents)
+}
+
+// ============================================================================
+// WINDOW MANAGEMENT COMMANDS
+// ============================================================================
+
+/// Bringt alle WebViews in den Vordergrund (über das Hauptfenster)
+#[tauri::command]
+async fn bring_webviews_to_front(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Mutex<WebTabState>>,
+) -> Result<(), String> {
+    let tab_ids: Vec<String> = {
+        let tab_state = state.lock().unwrap();
+        tab_state.tabs.keys().cloned().collect()
+    };
+
+    for tab_id in tab_ids {
+        if let Some(window) = app.get_webview_window(&tab_id) {
+            window.set_focus().ok();
+        }
+    }
+
+    Ok(())
+}
+
+/// Fokussiert das Hauptfenster
+#[tauri::command]
+async fn focus_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(main) = app.get_webview_window("main") {
+        main.set_focus().map_err(|e| format!("Failed to focus main window: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Bringt einen einzelnen Web-Tab in den Vordergrund (Z-Index)
+#[tauri::command]
+async fn bring_web_tab_to_front(
+    app: tauri::AppHandle,
+    tab_id: String,
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window(&tab_id) {
+        window.set_focus().map_err(|e| format!("Failed to bring tab to front: {}", e))?;
+    }
+    Ok(())
+}
+
+// ============================================================================
 // LEGACY COMMANDS (für Kompatibilität)
 // ============================================================================
 
@@ -480,7 +625,33 @@ pub fn run() {
             set_web_tab_visible,
             navigate_web_tab,
             is_web_tab_fullscreen,
+            // AI Content Extraction
+            extract_webview_content,
+            extract_all_webview_contents,
+            // Window Management
+            bring_webviews_to_front,
+            focus_main_window,
+            bring_web_tab_to_front,
         ])
+        // Native File Drag-and-Drop Handler
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::DragDrop(drag_event) = event {
+                if let DragDropEvent::Drop { paths, position } = drag_event {
+                    // Konvertiere PathBuf zu Strings
+                    let path_strings: Vec<String> = paths
+                        .iter()
+                        .filter_map(|p| p.to_str().map(String::from))
+                        .collect();
+
+                    // Event an Frontend senden mit Pfaden und Drop-Position
+                    let _ = window.emit("file-dropped", serde_json::json!({
+                        "paths": path_strings,
+                        "x": position.x,
+                        "y": position.y
+                    }));
+                }
+            }
+        })
         .setup(|app| {
             // Beim App-Start alle verwaisten Webview-Fenster schließen
             let app_handle = app.handle().clone();

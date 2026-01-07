@@ -26,3 +26,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
 
+# CEF Plugin (Off-Screen Rendering)
+cef-plugin = { path = "cef-plugin" }
+

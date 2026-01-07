@@ -4,3 +4,4 @@ export { useItemDrag } from './useItemDrag';
 export { useItemResize } from './useItemResize';
 export { useKeyboard } from './useKeyboard';
 export { useProximity } from './useProximity';
+export { useFileDrop } from './useFileDrop';

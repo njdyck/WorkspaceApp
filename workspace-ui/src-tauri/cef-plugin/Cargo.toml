@@ -1,0 +1,32 @@
+[package]
+name = "cef-plugin"
+version = "0.1.0"
+edition = "2021"
+description = "CEF Off-Screen Rendering Plugin for Tauri"
+
+[features]
+default = []
+# Enable when CEF binaries are downloaded
+# accelerated_osr = ["cef/accelerated_osr"]
+
+[dependencies]
+# Tauri
+tauri = { version = "2", features = [] }
+tauri-plugin = { version = "2" }
+
+# CEF Bindings (uncomment when ready)
+# cef = { git = "https://github.com/tauri-apps/cef-rs.git", branch = "dev" }
+
+# Async & Sync
+tokio = { version = "1", features = ["sync", "rt"] }
+parking_lot = "0.12"
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Logging
+log = "0.4"
+
+# Utils
+dashmap = "6"

@@ -40,6 +40,7 @@ interface WebTabState {
   getTabByItemId: (itemId: string) => WebTab | undefined;
   bringWebviewsToFront: () => Promise<void>;
   focusMainWindow: () => Promise<void>;
+  bringTabToFront: (tabId: string) => Promise<void>;
 
   // Internal
   _setTabFocused: (tabId: string, focused: boolean) => void;
@@ -53,6 +54,31 @@ interface WebTabState {
 
 // Lock Map um gleichzeitige Tab-Erstellung zu verhindern
 const creatingTabs = new Set<string>();
+
+// RAF-based bounds updates for smooth webview tracking
+let batchedUpdates: Map<string, TabBounds> = new Map();
+let rafScheduled = false;
+
+// Flush all pending bounds updates in a single RAF
+function flushBoundsUpdates() {
+  if (batchedUpdates.size === 0) {
+    rafScheduled = false;
+    return;
+  }
+
+  const updates = batchedUpdates;
+  batchedUpdates = new Map();
+  rafScheduled = false;
+
+  // Process all updates
+  updates.forEach(async (bounds, tabId) => {
+    try {
+      await invoke('update_web_tab_bounds', { tabId, bounds });
+    } catch (error) {
+      console.error('Failed to update tab bounds:', error);
+    }
+  });
+}
 
 export const useWebTabStore = create<WebTabState>((set, get) => ({
   tabs: new Map(),
@@ -132,30 +158,30 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
 
     // Validate bounds
     const validBounds = {
-      x: Math.round(Math.max(0, bounds.x)),
-      y: Math.round(Math.max(0, bounds.y)),
+      x: Math.round(bounds.x),
+      y: Math.round(bounds.y),
       width: Math.round(Math.max(100, bounds.width)),
       height: Math.round(Math.max(100, bounds.height)),
     };
 
-    // Throttled update to Rust
-    try {
-      await invoke('update_web_tab_bounds', {
-        tabId,
-        bounds: validBounds,
-      });
+    // Add to batched updates (latest wins)
+    batchedUpdates.set(tabId, validBounds);
 
-      set((state) => {
-        const newTabs = new Map(state.tabs);
-        const existingTab = newTabs.get(tabId);
-        if (existingTab) {
-          newTabs.set(tabId, { ...existingTab, bounds });
-        }
-        return { tabs: newTabs };
-      });
-    } catch (error) {
-      console.error('Failed to update tab bounds:', error);
+    // Schedule RAF if not already scheduled
+    if (!rafScheduled) {
+      rafScheduled = true;
+      requestAnimationFrame(flushBoundsUpdates);
     }
+
+    // Update local state immediately for smooth UI
+    set((state) => {
+      const newTabs = new Map(state.tabs);
+      const existingTab = newTabs.get(tabId);
+      if (existingTab) {
+        newTabs.set(tabId, { ...existingTab, bounds });
+      }
+      return { tabs: newTabs };
+    });
   },
 
   focusTab: async (tabId) => {
@@ -247,6 +273,16 @@ export const useWebTabStore = create<WebTabState>((set, get) => ({
       await invoke('focus_main_window');
     } catch (error) {
       console.error('Failed to focus main window:', error);
+    }
+  },
+
+  // Bring single tab to front (Z-Index)
+  bringTabToFront: async (tabId: string) => {
+    try {
+      await invoke('bring_web_tab_to_front', { tabId });
+      set({ focusedTabId: tabId });
+    } catch (error) {
+      console.error('Failed to bring tab to front:', error);
     }
   },
 

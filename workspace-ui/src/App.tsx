@@ -5,6 +5,9 @@ import { SearchPanel } from '@/components/ui/SearchPanel';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import { HelpModal } from '@/components/ui/HelpModal';
 import { Minimap } from '@/components/ui/Minimap';
+import { TaskGenerationModal } from '@/components/ui/TaskGenerationModal';
+import { BoardGenerationModal } from '@/components/ui/BoardGenerationModal';
+import { ToolProfilesModal } from '@/components/ui/ToolProfilesModal';
 import { useCanvasStore, useUIStore } from '@/stores';
 import { useKeyboard } from '@/hooks';
 import './App.css';
@@ -42,6 +45,9 @@ function App() {
       <SearchPanel />
       <ContextMenu />
       <HelpModal />
+      <TaskGenerationModal />
+      <BoardGenerationModal />
+      <ToolProfilesModal />
     </div>
   );
 }

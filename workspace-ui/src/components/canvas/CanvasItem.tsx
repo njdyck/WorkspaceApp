@@ -115,6 +115,8 @@ const CanvasItemComponent: React.FC<CanvasItemProps> = ({ item }) => {
           borderColor: borderColor,
           ...dimmedStyle,
           transition: 'opacity 0.2s, filter 0.2s',
+          willChange: 'transform',
+          contain: 'layout style paint',
         }}
         className={`
           absolute rounded-2xl border-2 transition-shadow select-none group backdrop-blur-sm
@@ -164,6 +166,8 @@ const CanvasItemComponent: React.FC<CanvasItemProps> = ({ item }) => {
         height: item.height,
         ...dimmedStyle,
         transition: 'opacity 0.2s, filter 0.2s',
+        willChange: 'transform',
+        contain: 'layout style paint',
       }}
       className={`
         absolute bg-white dark:bg-gray-800 rounded-lg border p-4 cursor-pointer transition-shadow select-none group z-10

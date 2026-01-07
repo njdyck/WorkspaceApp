@@ -72,6 +72,9 @@ interface CanvasState {
   // Duplicate Item
   duplicateItem: (id: string) => void;
   duplicateSelected: () => void;
+
+  // Zoom to Item (Pseudo-Fullscreen)
+  zoomToItem: (id: string, padding?: number) => void;
 }
 
 // Auto-Save Debounce
@@ -489,5 +492,44 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     set({ items: newItems, selectedIds: newSelectedIds });
     autoSave(() => get().saveCurrentBoard());
+  },
+
+  // Zoom to Item - Pseudo-Fullscreen für WebViews
+  zoomToItem: (id, padding = 40) => {
+    const { items } = get();
+    const item = items.get(id);
+    if (!item) return;
+
+    // Viewport-Größe ermitteln (Browser-Fenster minus Toolbar)
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight - 48; // App-Toolbar abziehen
+
+    // Verfügbarer Platz mit Padding
+    const availableWidth = viewportWidth - padding * 2;
+    const availableHeight = viewportHeight - padding * 2;
+
+    // Scale berechnen um Item einzupassen (kleinerer Wert gewinnt)
+    const scaleX = availableWidth / item.width;
+    const scaleY = availableHeight / item.height;
+    const targetScale = Math.min(scaleX, scaleY, 2); // Max 2x Zoom
+
+    // Viewport-Position so setzen, dass Item zentriert ist
+    // Formel: viewportX = centerScreenX - (item.x + item.width/2) * scale
+    const centerScreenX = viewportWidth / 2;
+    const centerScreenY = viewportHeight / 2;
+    const itemCenterX = item.x + item.width / 2;
+    const itemCenterY = item.y + item.height / 2;
+
+    const newX = centerScreenX - itemCenterX * targetScale;
+    const newY = centerScreenY - itemCenterY * targetScale;
+
+    set({
+      viewport: {
+        x: newX,
+        y: newY,
+        scale: targetScale,
+      },
+      selectedIds: new Set([id]),
+    });
   },
 }));

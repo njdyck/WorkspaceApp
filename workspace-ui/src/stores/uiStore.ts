@@ -1,11 +1,26 @@
 import { create } from 'zustand';
 import { FocusZone } from '@/types';
+import { GeneratedTask, GeneratedBoard } from '@/services/ai';
 
 interface UIState {
   // Modals
   addModal: { open: boolean };
   sidePanel: { open: boolean; itemId: string | null };
   helpModal: { open: boolean };
+  taskGenerationModal: {
+    open: boolean;
+    loading: boolean;
+    tasks: GeneratedTask[];
+    summary: string;
+    error: string | null;
+  };
+  boardGenerationModal: {
+    open: boolean;
+    loading: boolean;
+    board: GeneratedBoard | null;
+    error: string | null;
+  };
+  toolProfilesModal: { open: boolean };
 
   // Search
   searchOpen: boolean;
@@ -35,6 +50,19 @@ interface UIState {
   closeSidePanel: () => void;
   openHelpModal: () => void;
   closeHelpModal: () => void;
+  openTaskGenerationModal: () => void;
+  closeTaskGenerationModal: () => void;
+  setTaskGenerationLoading: (loading: boolean) => void;
+  setTaskGenerationResult: (tasks: GeneratedTask[], summary: string) => void;
+  setTaskGenerationError: (error: string | null) => void;
+  openBoardGenerationModal: () => void;
+  closeBoardGenerationModal: () => void;
+  setBoardGenerationLoading: (loading: boolean) => void;
+  setBoardGenerationResult: (board: GeneratedBoard) => void;
+  setBoardGenerationError: (error: string | null) => void;
+  clearBoardGenerationResult: () => void;
+  openToolProfilesModal: () => void;
+  closeToolProfilesModal: () => void;
 
   // Actions - Search
   openSearch: () => void;
@@ -63,6 +91,9 @@ export const useUIStore = create<UIState>((set, get) => ({
   addModal: { open: false },
   sidePanel: { open: false, itemId: null },
   helpModal: { open: false },
+  taskGenerationModal: { open: false, loading: false, tasks: [], summary: '', error: null },
+  boardGenerationModal: { open: false, loading: false, board: null, error: null },
+  toolProfilesModal: { open: false },
   searchOpen: false,
   searchQuery: '',
   contextMenu: { open: false, x: 0, y: 0, itemId: null },
@@ -81,6 +112,44 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   openHelpModal: () => set({ helpModal: { open: true } }),
   closeHelpModal: () => set({ helpModal: { open: false } }),
+
+  openTaskGenerationModal: () => set({
+    taskGenerationModal: { open: true, loading: false, tasks: [], summary: '', error: null }
+  }),
+  closeTaskGenerationModal: () => set({
+    taskGenerationModal: { open: false, loading: false, tasks: [], summary: '', error: null }
+  }),
+  setTaskGenerationLoading: (loading) => set((state) => ({
+    taskGenerationModal: { ...state.taskGenerationModal, loading, error: null }
+  })),
+  setTaskGenerationResult: (tasks, summary) => set((state) => ({
+    taskGenerationModal: { ...state.taskGenerationModal, loading: false, tasks, summary, error: null }
+  })),
+  setTaskGenerationError: (error) => set((state) => ({
+    taskGenerationModal: { ...state.taskGenerationModal, loading: false, error }
+  })),
+
+  openBoardGenerationModal: () => set({
+    boardGenerationModal: { open: true, loading: false, board: null, error: null }
+  }),
+  closeBoardGenerationModal: () => set({
+    boardGenerationModal: { open: false, loading: false, board: null, error: null }
+  }),
+  setBoardGenerationLoading: (loading) => set((state) => ({
+    boardGenerationModal: { ...state.boardGenerationModal, loading, error: null }
+  })),
+  setBoardGenerationResult: (board) => set((state) => ({
+    boardGenerationModal: { ...state.boardGenerationModal, loading: false, board, error: null }
+  })),
+  setBoardGenerationError: (error) => set((state) => ({
+    boardGenerationModal: { ...state.boardGenerationModal, loading: false, error }
+  })),
+  clearBoardGenerationResult: () => set((state) => ({
+    boardGenerationModal: { ...state.boardGenerationModal, board: null }
+  })),
+
+  openToolProfilesModal: () => set({ toolProfilesModal: { open: true } }),
+  closeToolProfilesModal: () => set({ toolProfilesModal: { open: false } }),
 
   // Search Actions
   openSearch: () => set({ searchOpen: true }),

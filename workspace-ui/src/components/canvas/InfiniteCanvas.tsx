@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, useCallback } from 'react';
 import { useCanvasStore, useWebTabStore, useUIStore } from '@/stores';
-import { useCanvasNavigation, useSelection, useItemDrag, useItemResize } from '@/hooks';
+import { useCanvasNavigation, useSelection, useItemDrag, useItemResize, useFileDrop } from '@/hooks';
 import { CanvasGrid } from './CanvasGrid';
 import { CanvasItem } from './CanvasItem';
 import { WebTabItem } from './WebTabItem';
@@ -9,12 +9,42 @@ import { ProximityFeedback } from './ProximityFeedback';
 import { ConnectionLines } from './ConnectionLines';
 import { CanvasViewport } from './CanvasViewport';
 import { FocusZone } from './FocusZone';
+import { CanvasItem as CanvasItemType } from '@/models';
+
+// Viewport culling buffer - items within this margin of viewport are rendered
+const CULLING_BUFFER = 200;
+
+// Check if item is visible in viewport (with buffer)
+function isItemInViewport(
+  item: CanvasItemType,
+  viewport: { x: number; y: number; scale: number },
+  windowWidth: number,
+  windowHeight: number
+): boolean {
+  // Convert viewport coordinates to canvas coordinates
+  const viewLeft = -viewport.x / viewport.scale - CULLING_BUFFER;
+  const viewTop = -viewport.y / viewport.scale - CULLING_BUFFER;
+  const viewRight = (-viewport.x + windowWidth) / viewport.scale + CULLING_BUFFER;
+  const viewBottom = (-viewport.y + windowHeight) / viewport.scale + CULLING_BUFFER;
+
+  // Check if item intersects with viewport
+  const itemRight = item.x + item.width;
+  const itemBottom = item.y + item.height;
+
+  return !(
+    item.x > viewRight ||
+    itemRight < viewLeft ||
+    item.y > viewBottom ||
+    itemBottom < viewTop
+  );
+}
 
 export const InfiniteCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Granulare Zustand-Selektoren für bessere Performance
   const items = useCanvasStore((s) => s.items);
+  const viewport = useCanvasStore((s) => s.viewport);
   const clearSelection = useCanvasStore((s) => s.clearSelection);
   const isPanning = useCanvasStore((s) => s.isPanning);
   const isConnecting = useCanvasStore((s) => s.isConnecting);
@@ -29,6 +59,7 @@ export const InfiniteCanvas: React.FC = () => {
   
   useItemDrag();
   useItemResize();
+  useFileDrop(); // Native OS File Drag-and-Drop
 
   // Schließe alle Tabs beim Board-Wechsel
   useEffect(() => {
@@ -106,8 +137,16 @@ export const InfiniteCanvas: React.FC = () => {
     return 'default';
   };
 
-  // Memoized items array - nur neu berechnen wenn sich items Map ändert
-  const itemsArray = useMemo(() => Array.from(items.values()), [items]);
+  // Memoized visible items - viewport culling for performance
+  const visibleItems = useMemo(() => {
+    const allItems = Array.from(items.values());
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    return allItems.filter(item =>
+      isItemInViewport(item, viewport, windowWidth, windowHeight)
+    );
+  }, [items, viewport.x, viewport.y, viewport.scale]);
 
   return (
     <div
@@ -134,8 +173,8 @@ export const InfiniteCanvas: React.FC = () => {
         {/* Focus Zone - Dimmer und Rahmen */}
         <FocusZone />
 
-        {/* Items - WebTabItem für webview badges, sonst CanvasItem */}
-        {itemsArray.map((item) => 
+        {/* Items - Only render visible items (viewport culling) */}
+        {visibleItems.map((item) =>
           item.badge === 'webview' ? (
             <WebTabItem key={item.id} item={item} />
           ) : (

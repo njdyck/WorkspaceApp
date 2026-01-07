@@ -1,20 +1,93 @@
-import React, { useState } from 'react';
-import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid, ArrowRight, X, Focus, Grid3X3, Keyboard } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Plus, BrainCircuit, Globe, Search, MoreHorizontal, Sparkles, LayoutGrid, ArrowRight, X, Focus, Grid3X3, Keyboard, ListTodo, Layout, Settings2 } from 'lucide-react';
 import { useUIStore, useCanvasStore } from '@/stores';
 import { autoClusterItems } from '@/services/clustering';
+import { generateTasksFromItems, extractAllWebviewContents, loadApiKey, saveApiKey, WebviewContent } from '@/services/ai';
 import { generateId } from '@/utils';
 import { DEFAULT_WEBVIEW_WIDTH, DEFAULT_WEBVIEW_HEIGHT } from '@/models';
 
 export const BottomToolbar: React.FC = () => {
-  const { openAddModal, focusMode, toggleFocusMode, openSearch, openHelpModal, toggleGridSnapping, gridSnapping } = useUIStore();
-  const { items, updateItem, viewport, addItem } = useCanvasStore();
+  const {
+    openAddModal, focusMode, toggleFocusMode, openSearch, openHelpModal,
+    toggleGridSnapping, gridSnapping,
+    openTaskGenerationModal, setTaskGenerationLoading, setTaskGenerationResult, setTaskGenerationError,
+    openBoardGenerationModal, openToolProfilesModal
+  } = useUIStore();
+  const { items, selectedIds, updateItem, viewport, addItem } = useCanvasStore();
   const [showAIMenu, setShowAIMenu] = useState(false);
   const [isClustering, setIsClustering] = useState(false);
+  const [isGeneratingTasks, setIsGeneratingTasks] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [showWebviewInput, setShowWebviewInput] = useState(false);
   const [webviewUrl, setWebviewUrl] = useState('https://');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  // Load API key from localStorage on mount
+  useEffect(() => {
+    const savedKey = loadApiKey();
+    if (savedKey) {
+      setApiKey(savedKey);
+    }
+  }, []);
+
+  // Save API key when it changes
+  const handleApiKeyChange = useCallback((key: string) => {
+    setApiKey(key);
+    if (key) {
+      saveApiKey(key);
+    }
+  }, []);
+
+  // Generate Tasks Handler
+  const handleGenerateTasks = useCallback(async () => {
+    if (!apiKey) {
+      setShowApiKeyInput(true);
+      return;
+    }
+
+    setShowAIMenu(false);
+    setIsGeneratingTasks(true);
+    openTaskGenerationModal();
+    setTaskGenerationLoading(true);
+
+    try {
+      // Get items to analyze (selected or all)
+      const itemsArray = Array.from(items.values());
+      const itemsToAnalyze = selectedIds.size > 0
+        ? itemsArray.filter(item => selectedIds.has(item.id))
+        : itemsArray;
+
+      if (itemsToAnalyze.length === 0) {
+        setTaskGenerationError('Keine Items zum Analysieren vorhanden.');
+        return;
+      }
+
+      // Extract webview contents
+      let webviewContents = new Map<string, WebviewContent>();
+      try {
+        const contents = await extractAllWebviewContents();
+        contents.forEach(content => {
+          // Find the item by tab_id (webtab-{itemId})
+          const itemId = content.tab_id.replace('webtab-', '');
+          if (itemsToAnalyze.some(item => item.id === itemId)) {
+            webviewContents.set(itemId, content);
+          }
+        });
+      } catch (e) {
+        console.warn('Could not extract webview contents:', e);
+      }
+
+      // Generate tasks
+      const result = await generateTasksFromItems(itemsToAnalyze, webviewContents, apiKey);
+      setTaskGenerationResult(result.tasks, result.summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unbekannter Fehler';
+      setTaskGenerationError(message);
+    } finally {
+      setIsGeneratingTasks(false);
+    }
+  }, [apiKey, items, selectedIds, openTaskGenerationModal, setTaskGenerationLoading, setTaskGenerationResult, setTaskGenerationError]);
 
   const handleAutoCluster = async (useAI: boolean = false) => {
     setIsClustering(true);
@@ -176,16 +249,70 @@ export const BottomToolbar: React.FC = () => {
                   </div>
                 </button>
 
+                {/* Task Generation */}
+                <button
+                  onClick={handleGenerateTasks}
+                  disabled={isGeneratingTasks}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-green-50 transition-colors text-left disabled:opacity-50"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
+                    <ListTodo size={16} className={`text-green-600 ${isGeneratingTasks ? 'animate-pulse' : ''}`} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Tasks generieren</div>
+                    <div className="text-xs text-gray-500">
+                      {selectedIds.size > 0 ? `Aus ${selectedIds.size} Items` : 'Aus allen Items'}
+                    </div>
+                  </div>
+                </button>
+
+                {/* Board Generation */}
+                <button
+                  onClick={() => {
+                    openBoardGenerationModal();
+                    setShowAIMenu(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-indigo-50 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center">
+                    <Layout size={16} className="text-indigo-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Board generieren</div>
+                    <div className="text-xs text-gray-500">Aus Projektbeschreibung</div>
+                  </div>
+                </button>
+
+                <div className="my-1 border-t border-gray-100" />
+
+                {/* Tool Profiles */}
+                <button
+                  onClick={() => {
+                    openToolProfilesModal();
+                    setShowAIMenu(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                    <Settings2 size={16} className="text-gray-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">Tool-Profile</div>
+                    <div className="text-xs text-gray-500">Eigene URLs konfigurieren</div>
+                  </div>
+                </button>
+
                 {/* API Key Input */}
                 {showApiKeyInput && (
                   <div className="mt-2 p-2 bg-gray-50 rounded-lg">
                     <input
                       type="password"
-                      placeholder="OpenAI API Key"
+                      placeholder="OpenAI API Key (sk-...)"
                       value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
+                      onChange={(e) => handleApiKeyChange(e.target.value)}
                       className="w-full text-xs px-2 py-1.5 rounded border border-gray-200 focus:border-purple-400 outline-none"
                     />
+                    <p className="text-xs text-gray-400 mt-1">Wird lokal gespeichert</p>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={() => setShowApiKeyInput(false)}
@@ -196,13 +323,13 @@ export const BottomToolbar: React.FC = () => {
                       <button
                         onClick={() => {
                           if (apiKey) {
-                            handleAutoCluster(true);
                             setShowApiKeyInput(false);
                           }
                         }}
-                        className="flex-1 text-xs py-1 rounded bg-purple-600 text-white hover:bg-purple-700"
+                        disabled={!apiKey}
+                        className="flex-1 text-xs py-1 rounded bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
                       >
-                        Starten
+                        Speichern
                       </button>
                     </div>
                   </div>
